@@ -22,7 +22,23 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-      #- type: bind
-      #  source: /var/run/docker.sock
-      #  target: /var/run/docker.sock
     command: /bin/bash -c "echo ready; sleep infinity"
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - type: bind
+        source: ../ollama
+        target: /root/.ollama
+  expo-builder:
+    image: reactnativecommunity/react-native-android:latest
+    volumes:
+      - type: bind
+        source: ../src/builder/output
+        target: /apps
+      - type: bind
+        source: ../src/builder/build-server.js
+        target: /build-server.js
+        read_only: true
+    ports:
+      - "3000:3000"
+    command: node /build-server.js

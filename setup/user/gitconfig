@@ -1,10 +1,19 @@
 [user]
-	email = dev-user@dev.f0i.de
-	name = https://github.com/f0i/dev
+	email = f0i.git@projects.f0i.de
+	name = Martin Sigloch
+	signingkey = 19810A7F
+[core]
+	excludesfile = /home/ma/.gitignore
+	# disable hooks to prevent unwated code execution
+	# you can set hooksPath per repository if desired
+	hooksPath = /dev/null
+	hooksPath = /dev/null
 [merge]
 	tool = vimdiff
 [mergetool "vimdiff"]
 	cmd = nvim -d $BASE $LOCAL $REMOTE $MERGED -c '$wincmd w' -c 'wincmd J'
+[commit]
+	#gpgsign = true
 [diff]
 	noprefix = true
 [color]
