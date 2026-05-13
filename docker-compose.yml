@@ -29,16 +29,25 @@ services:
       - type: bind
         source: ../ollama
         target: /root/.ollama
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
   expo-builder:
-    image: reactnativecommunity/react-native-android:latest
+    #image: reactnativecommunity/react-native-android:latest
+    build:
+      context: .
+      dockerfile: expo-builder.Dockerfile
     volumes:
       - type: bind
-        source: ../src/builder/output
+        source: ../apps
         target: /apps
       - type: bind
         source: ../src/builder/build-server.js
         target: /build-server.js
         read_only: true
-    ports:
-      - "3000:3000"
-    command: node /build-server.js
+    command: node --watch /build-server.js
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"

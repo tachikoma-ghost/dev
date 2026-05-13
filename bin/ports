@@ -27,15 +27,15 @@ else
 fi
 
 # start ssh
-docker exec -itu node -w /workspace "$container" \
+docker exec -iu node -w /workspace "$container" \
 	bash -c 'sudo service ssh start'
 
 # extract IP address of docker container from via docker cli
-ip=$(docker exec -itu node -w /workspace "$container" \
+ip=$(docker exec -iu node -w /workspace "$container" \
 	bash -c 'ip address show scope global | grep inet | sed "s/.*inet.\([0-9.]*\).*/\1/"' | tr -d '[:space:]')
 
 # concatenate all port mappings for local port forwarding (-L)
-sshArgs=""
+sshArgs="-o StrictHostKeyChecking=no"
 for portMapping in "$@"; do
 	portContainer=${portMapping#*:}
 	portHost=${portMapping%%:*}

@@ -5,9 +5,9 @@ COPY setup /setup
 
 USER node
 
-RUN /setup/sshd.sh
+RUN USER=node /setup/sshd.sh
 RUN /setup/nvim.sh
-RUN /setup/bash.sh
+RUN USER=node /setup/bash.sh
 RUN /setup/agent.sh
 #RUN /setup/php.sh
 #RUN /setup/icp.sh
