@@ -36,8 +36,9 @@ sudo apt-get install -y --no-install-recommends \
 	"php${PHP_VERSION}-curl" \
 	"php${PHP_VERSION}-zip" \
 	"php${PHP_VERSION}-gd" \
-	"php${PHP_VERSION}-bcmath" \
-	"php${PHP_VERSION}-opcache"
+	"php${PHP_VERSION}-bcmath"
+# No -opcache or -sodium package: as of 8.5 Surý compiles both into the cli and
+# fpm binaries. Asking for them by name fails the build.
 
 # Fail at build time, not at first request, if we did not get what we asked for.
 php -r 'exit(version_compare(PHP_VERSION, "8.4", ">=") ? 0 : 1);' ||
