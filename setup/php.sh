@@ -2,10 +2,12 @@
 #
 # PHP toolchain for Laravel development.
 #
-# PHP 8.4 is a hard floor: below it, PDO's inTransaction() does not track
-# transactions opened via exec(), which breaks Laravel's SQLite IMMEDIATE
-# transaction mode. 8.5 is the target, for native
-# Pdo\Sqlite::ATTR_TRANSACTION_MODE.
+# PHP 8.5 is both the target and a hard floor. SQLite wants IMMEDIATE
+# transactions — DEFERRED takes a read lock and returns SQLITE_BUSY when it
+# cannot upgrade to a write lock, ignoring busy_timeout — and 8.5 is the first
+# version that sets it properly, via Pdo\Sqlite::ATTR_TRANSACTION_MODE. On 8.4
+# it has to go through exec(), which then leaves PDO::inTransaction() unaware
+# a transaction is open. One supported version is also one test matrix.
 
 set -eu -o pipefail
 
@@ -41,8 +43,8 @@ sudo apt-get install -y --no-install-recommends \
 # fpm binaries. Asking for them by name fails the build.
 
 # Fail at build time, not at first request, if we did not get what we asked for.
-php -r 'exit(version_compare(PHP_VERSION, "8.4", ">=") ? 0 : 1);' ||
-	{ echo "FATAL: PHP >= 8.4 required, got $(php -v | head -1)" >&2; exit 1; }
+php -r 'exit(version_compare(PHP_VERSION, "8.5", ">=") ? 0 : 1);' ||
+	{ echo "FATAL: PHP >= 8.5 required, got $(php -v | head -1)" >&2; exit 1; }
 php -r 'exit(extension_loaded("pdo_sqlite") ? 0 : 1);' ||
 	{ echo "FATAL: pdo_sqlite missing" >&2; exit 1; }
 # sodium signs and verifies the handoff tokens. Normally bundled, but a missing
