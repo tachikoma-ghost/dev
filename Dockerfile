@@ -14,6 +14,8 @@ RUN /setup/agent.sh
 #RUN /setup/rust.sh
 RUN /setup/tmux.sh
 RUN /setup/terminfo.sh
+RUN /setup/section3.sh
+RUN /setup/signalshell.sh
 
 # Rootless Docker-in-Docker, for tools that run their own containers (Laravel
 # Sail and friends). Enabling it also needs the security_opt block in
