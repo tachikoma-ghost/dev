@@ -22,6 +22,27 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
+    # Only needed for rootless Docker-in-Docker; uncomment together with the
+    # `RUN /setup/dind.sh` line in the Dockerfile and the `dind` service in
+    # /workspace/section3.yml. Without it the container cannot create a user
+    # namespace (Docker's default seccomp profile blocks clone(CLONE_NEWUSER)
+    # without CAP_SYS_ADMIN) and the rootless daemon will not start.
+    #
+    # What this costs: a wider kernel attack surface. userns plus mount reach
+    # code paths with a history of local privilege escalation bugs
+    # (CVE-2022-0185, CVE-2023-0386). What it does not cost: any new authority
+    # over the host. No capabilities are added, block devices cannot be mounted
+    # inside a user namespace, container root maps to node's unprivileged uid,
+    # and inherited mounts keep their locked flags — the read-only bind of ../dev
+    # below cannot be remounted rw or unmounted to reveal what it covers.
+    #
+    # apparmor=unconfined is a no-op unless AppArmor is enabled on the host;
+    # check before keeping it. Narrowing seccomp to a custom profile instead of
+    # unconfined is possible but has to allow mount, unshare, setns, pivot_root
+    # and the new mount API, so it buys less than it looks like it should.
+    #security_opt:
+    #  - seccomp=unconfined
+    #  - apparmor=unconfined
     command: /bin/bash -c "echo ready; sleep infinity"
   ollama:
     image: ollama/ollama

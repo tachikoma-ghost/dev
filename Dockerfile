@@ -15,5 +15,11 @@ RUN /setup/agent.sh
 RUN /setup/tmux.sh
 RUN /setup/terminfo.sh
 
+# Rootless Docker-in-Docker, for tools that run their own containers (Laravel
+# Sail and friends). Enabling it also needs the security_opt block in
+# docker-compose.yml and the `dind` service in /workspace/section3.yml — see
+# the header of setup/dind.sh.
+#RUN /setup/dind.sh
+
 #CMD [ "sleep", "infinity" ]
 ENTRYPOINT ["/bin/bash", "-c", "if [ -f /workspace/init.sh ]; then /workspace/init.sh; else sleep infinity; fi"]
