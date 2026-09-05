@@ -19,8 +19,8 @@ RUN /setup/signalshell.sh
 
 # Rootless Docker-in-Docker, for tools that run their own containers (Laravel
 # Sail and friends). Enabling it also needs the security_opt block in
-# docker-compose.yml and the `dind` service in /workspace/section3.yml — see
-# the header of setup/dind.sh.
+# docker-compose.yml. The script declares its own section3 service, so there is
+# nothing to add elsewhere. See the header of setup/dind.sh.
 #RUN /setup/dind.sh
 
 #CMD [ "sleep", "infinity" ]

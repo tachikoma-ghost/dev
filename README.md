@@ -63,16 +63,16 @@ It is rootless rather than the usual privileged Docker-in-Docker.
 A privileged daemon can mount host block devices and load kernel modules, so anything able to reach it has root on the host by design.
 The rootless daemon runs as `node` inside a user namespace: container root maps to an unprivileged uid, block devices cannot be mounted at all, and read-only mounts stay read-only.
 
-**To enable**, uncomment three blocks. Each is commented and cross-referenced:
+**To enable**, uncomment two blocks. Each is commented and cross-referenced:
 
 1. `Dockerfile`: the `RUN /setup/dind.sh` line
 2. `docker-compose.yml`: the `security_opt` block
-3. whatever starts services inside the container: run `dockerd-rootless.sh` with `XDG_RUNTIME_DIR` set (here, the `dind` service in `/workspace/section3.yml`)
 
 Then `dev build` and `dev start`.
+There is no third step: `setup/dind.sh` writes its own service definition into `~/.config/section3/conf.d/`, which section3 reads, so installing the daemon is what registers it.
 Forgetting the `security_opt` block is the usual mistake: without it the daemon cannot create a user namespace and exits immediately.
 
-**To disable**, comment the same three blocks and rebuild.
+**To disable**, comment the same two blocks and rebuild.
 
 **To check it worked:**
 

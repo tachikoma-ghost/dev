@@ -13,11 +13,11 @@ set -eu -o pipefail
 # uid, block devices cannot be mounted at all, and inherited mounts keep their
 # locked flags (the read-only /workspace/dev bind stays read-only).
 #
-# Enabling this needs three more changes, each commented in place:
-#   docker-compose.yml       the security_opt block, or the container cannot
-#                            create the user namespace the daemon needs
-#   Dockerfile               the RUN line that calls this script
-#   /workspace/section3.yml  the `dind` service that starts the daemon
+# Enabling this needs one more change, commented in place: the security_opt
+# block in docker-compose.yml, without which the container cannot create the
+# user namespace the daemon needs. The service that starts the daemon is
+# declared by this script (see the bottom), so running it is what makes the
+# service exist.
 
 USER_UID="$(id -u)"
 
@@ -70,6 +70,22 @@ EOF
 # socket for `test -S`, `test -e` and friends, and the CLI gives its usual
 # "Cannot connect to the Docker daemon" error rather than anything misleading.
 sudo ln -sfn "/run/user/${USER_UID}/docker.sock" /var/run/docker.sock
+
+# Declare the service that runs the daemon. section3 reads every file in this
+# directory, so dropping one here is the whole registration: there is no second
+# edit in another repo to remember, and commenting out the RUN line that calls
+# this script removes the service along with the packages.
+#
+# XDG_RUNTIME_DIR has no systemd or logind here to create it, so the service
+# makes the directory itself. The storage driver is pinned in daemon.json
+# rather than passed as a flag: setting it in both places makes dockerd refuse
+# to start.
+install -d -m 755 ~/.config/section3/conf.d
+cat >~/.config/section3/conf.d/dind.yml <<'EOF'
+services:
+  dind:
+    command: bash -c 'sudo install -d -o node -g node -m 0700 /run/user/$(id -u) && export XDG_RUNTIME_DIR=/run/user/$(id -u) && exec dockerd-rootless.sh'
+EOF
 
 cat <<EOF
 

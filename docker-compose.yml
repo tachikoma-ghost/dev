@@ -23,8 +23,8 @@ services:
         target: /home/node/.local/share/nvim
         read_only: false
     # Only needed for rootless Docker-in-Docker; uncomment together with the
-    # `RUN /setup/dind.sh` line in the Dockerfile and the `dind` service in
-    # /workspace/section3.yml. Without it the container cannot create a user
+    # `RUN /setup/dind.sh` line in the Dockerfile. That script declares its own
+    # section3 service. Without this block the container cannot create a user
     # namespace (Docker's default seccomp profile blocks clone(CLONE_NEWUSER)
     # without CAP_SYS_ADMIN) and the rootless daemon will not start.
     #
