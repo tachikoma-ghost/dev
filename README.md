@@ -54,6 +54,41 @@ During `dev init`, the nvim configuration is cloned into `./dev/nvim` and mounte
 - Or you can manually clone any nvim config repo to `./dev/nvim` before building
 - Or skip the nvim setup during init and add it later
 
+## Docker in Docker
+
+Some tools bring their own containers: Laravel Sail, Testcontainers, a project's own `docker compose`.
+Those need a real Docker daemon rather than a socket pointed at the host's, so the container ships an optional rootless one.
+
+It is rootless rather than the usual privileged Docker-in-Docker.
+A privileged daemon can mount host block devices and load kernel modules, so anything able to reach it has root on the host by design.
+The rootless daemon runs as `node` inside a user namespace: container root maps to an unprivileged uid, block devices cannot be mounted at all, and read-only mounts stay read-only.
+
+**To enable**, uncomment three lines, each commented and cross-referenced:
+
+1. `docker-compose.yml`: the `security_opt` block, without which the daemon cannot create its user namespace and exits immediately
+2. `Dockerfile`: the `RUN /setup/dind.sh` line
+3. `Dockerfile`: the `RUN /setup/section3.sh` line, which is what starts the daemon. `setup/dind.sh` declares it as a service in `~/.config/section3/conf.d/`, and section3 reads it. Without section3, start it yourself: `XDG_RUNTIME_DIR=/run/user/$(id -u) dockerd-rootless.sh`
+
+Then `dev build` and `dev start`.
+
+**To check it worked:**
+
+```
+docker info | grep -i 'storage driver'   # overlay2, never vfs
+docker run --rm hello-world
+```
+
+**What it costs.** A wider kernel attack surface: user namespaces plus `mount` reach code paths with a history of local privilege escalation bugs, CVE-2022-0185 and CVE-2023-0386 among them.
+It grants no new authority over the host.
+The block is needed because Docker's default seccomp profile blocks `clone(CLONE_NEWUSER)` without `CAP_SYS_ADMIN`.
+A narrower custom profile instead of `unconfined` is possible, but it still has to allow `mount`, `unshare`, `setns`, `pivot_root` and the new mount API, so it buys less than it looks like it should.
+Sub-containers can be handed anything the dev container can see, so keep the paths you mount into them narrow.
+
+**File ownership.** The rootless daemon maps container uid 0 to `node` and everything above it into the subuid range, so a container running as uid 1000 writes files that arrive as 100999 outside.
+Run containers as root to keep bind-mounted files owned by `node`.
+For Sail that means `sail artisan sail:publish`, then changing `user=sail` to `user=root` in `supervisord.conf`.
+Setting `WWWUSER=0` does not work, because the entrypoint's `usermod` refuses a duplicate uid.
+
 ## How it works
 
 Simple, transparent scripts you can easily audit:

@@ -25,4 +25,8 @@ services:
       #- type: bind
       #  source: /var/run/docker.sock
       #  target: /var/run/docker.sock
+    # Required for rootless Docker-in-Docker; see README.md.
+    #security_opt:
+    #  - seccomp=unconfined
+    #  - apparmor=unconfined
     command: /bin/bash -c "echo ready; sleep infinity"
