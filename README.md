@@ -14,6 +14,18 @@ As a side effect, you get clean, reproducible, and easy-to-reset development env
 No more `npm install` on your host, no AI agents reading your files.
 Safely experiment with any project.
 
+## How it works
+
+Simple, transparent scripts you can easily audit:
+- Main script `bin/dev`: ~200 lines of bash, mostly if/else and case statements, linear, no recursion
+- Port forwarding `bin/ports`: ~50 lines of bash, starting a ssh tunnel with `ssh -L ...`
+- Docker-compose file: ~30 lines of yaml, defining services and volumes
+- Dockerfile: ~20 lines, defining the base image and which tools to install by default
+- Setup scripts in `setup/`: ~5-30 lines of bash each
+
+You are supposed to modify the Dockerfile and setup scripts to fit your needs.
+The docker-compose file can also be used to include additional services or enable permanent port forwarding.
+
 ## Install
 
 Requires docker, docker-compose and some basic tools like git, bash and ssh.
@@ -88,18 +100,6 @@ Sub-containers can be handed anything the dev container can see, so keep the pat
 Run containers as root to keep bind-mounted files owned by `node`.
 For Sail that means `sail artisan sail:publish`, then changing `user=sail` to `user=root` in `supervisord.conf`.
 Setting `WWWUSER=0` does not work, because the entrypoint's `usermod` refuses a duplicate uid.
-
-## How it works
-
-Simple, transparent scripts you can easily audit:
-- Main script `bin/dev`: ~200 lines of bash, mostly if/else and case statements, linear, no recursion
-- Port forwarding `bin/ports`: ~50 lines of bash, starting a ssh tunnel with `ssh -L ...`
-- Docker-compose file: ~30 lines of yaml, defining services and volumes
-- Dockerfile: ~20 lines, defining the base image and which tools to install by default
-- Setup scripts in `setup/`: ~5-30 lines of bash each
-
-You are supposed to modify the Dockerfile and setup scripts to fit your needs.
-The docker-compose file can also be used to include additional services or enable permanent port forwarding.
 
 ## License
 
