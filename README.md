@@ -99,7 +99,7 @@ Simple, transparent scripts you can easily audit:
 - Setup scripts in `setup/`: ~5-30 lines of bash each
 
 You are supposed to modify the Dockerfile and setup scripts to fit your needs.
-The docker-compose file can also be used to include additional services or enable permanent port farwarding.
+The docker-compose file can also be used to include additional services or enable permanent port forwarding.
 
 ## License
 
