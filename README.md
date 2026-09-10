@@ -92,10 +92,10 @@ Setting `WWWUSER=0` does not work, because the entrypoint's `usermod` refuses a 
 ## How it works
 
 Simple, transparent scripts you can easily audit:
-- Main script `bin/dev`: ~200 lines of bash, mostly if/else and case statements, no loops
+- Main script `bin/dev`: ~200 lines of bash, mostly if/else and case statements, linear, no recursion
 - Port forwarding `bin/ports`: ~50 lines of bash, starting a ssh tunnel with `ssh -L ...`
-- Docker-compose file: ~20 lines of yaml, defining services and volumes
-- Dockerfile: ~15 lines, defining the base image and which tools to install by default
+- Docker-compose file: ~30 lines of yaml, defining services and volumes
+- Dockerfile: ~20 lines, defining the base image and which tools to install by default
 - Setup scripts in `setup/`: ~5-30 lines of bash each
 
 You are supposed to modify the Dockerfile and setup scripts to fit your needs.
