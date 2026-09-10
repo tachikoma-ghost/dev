@@ -1,6 +1,7 @@
 services:
   dev:
     build: .
+    hostname: ${DEV_HOSTNAME:?set by bin/dev from the project name}
     volumes:
       - type: bind
         source: ../
