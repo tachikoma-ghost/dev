@@ -52,6 +52,20 @@ All other files will be added per project as needed:
 8. Enable port forwarding to the host `dev ports 3000 8080:80`,
    in this case port 3000 and 8080 of the host will be forwarded to port 3000 and 80 of the container
 
+## AI agents
+
+`setup/agent.sh` installs Claude Code, opencode and the Gemini CLI.
+Comment out the `RUN /setup/agent.sh` line in the `Dockerfile` to leave them out, or edit the script to change the set.
+
+`setup/user/claude/settings.json` is copied to `~/.claude/` and sets three defaults for Claude Code:
+
+- no attribution on commits or pull requests, and no session link
+- Remote Control off at startup, so a session is reachable from outside only after you run `/remote-control`
+- approval required before Claude messages one of your sessions on another machine, which is the case that travels through Anthropic's servers
+
+Edit that file to change them.
+Claude Code writes its own settings there too, so a container keeps whatever you change inside it until it is rebuilt.
+
 ## Nvim Configuration
 
 During `dev init`, the nvim configuration is cloned into `./dev/nvim` and mounted at `/home/node/.config/nvim` inside the container.
