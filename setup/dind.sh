@@ -7,8 +7,6 @@ set -eu -o pipefail
 
 USER_UID="$(id -u)"
 
-# Docker's apt repository. Same steps as setup/docker.sh, repeated here so
-# either script works on its own; both are idempotent.
 sudo apt-get update
 sudo apt-get install -y ca-certificates curl
 sudo install -m 0755 -d /etc/apt/keyrings
