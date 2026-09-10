@@ -23,9 +23,6 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-      #- type: bind
-      #  source: /var/run/docker.sock
-      #  target: /var/run/docker.sock
     # Required for rootless Docker-in-Docker; see README.md.
     #security_opt:
     #  - seccomp=unconfined
