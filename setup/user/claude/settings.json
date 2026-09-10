@@ -4,5 +4,6 @@
     "pr": "",
     "sessionUrl": false
   },
-  "remoteControlAtStartup": false
+  "remoteControlAtStartup": false,
+  "isolatePeerMachines": true
 }
