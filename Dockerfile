@@ -18,6 +18,7 @@ RUN /setup/terminfo.sh
 RUN /setup/bash.sh
 RUN /setup/nvim.sh
 RUN /setup/agent.sh
+RUN /setup/bun.sh
 RUN /setup/php.sh
 #RUN /setup/icp.sh
 #RUN /setup/rust.sh
