@@ -163,6 +163,7 @@ help ()
 	echo "  help (h): show this help"
 	echo "  ports (p): set port mappings"
 	echo "  start (s) stop up (u) build (b): docker-compose commands"
+	echo "           extra arguments are passed through, e.g. build --no-cache --pull"
 	echo "  run: run a command inside the container"
 	echo "  bash (default): start a bash shell inside the container"
 	echo "  local: start a bash shell on the host inside the project directory"
@@ -179,16 +180,16 @@ case "$command" in
 		./bin/ports "$project" "$@"
 		;;
 	"s"|"start")
-		docker-compose -p "$project" up -d
+		docker-compose -p "$project" up -d "$@"
 		;;
 	"stop")
-		docker-compose -p "$project" stop
+		docker-compose -p "$project" stop "$@"
 		;;
 	"up"|"u")
-		docker-compose -p "$project" up
+		docker-compose -p "$project" up "$@"
 		;;
 	"build"|"b")
-		docker-compose -p "$project" build
+		docker-compose -p "$project" build "$@"
 		;;
 	"run"|"r")
 		docker exec -itu node -w /workspace -e TERM -e COLORTERM "$container" "$@"
