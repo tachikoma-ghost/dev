@@ -1,6 +1,7 @@
 services:
   dev:
     build: .
+    hostname: ${DEV_HOSTNAME:?set by bin/dev from the project name}
     volumes:
       - type: bind
         source: ../
@@ -22,7 +23,8 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-      #- type: bind
-      #  source: /var/run/docker.sock
-      #  target: /var/run/docker.sock
+    # Required for rootless Docker-in-Docker; see README.md.
+    #security_opt:
+    #  - seccomp=unconfined
+    #  - apparmor=unconfined
     command: /bin/bash -c "echo ready; sleep infinity"
