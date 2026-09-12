@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 #
-# PHP toolchain for Laravel development.
+# Everything the unitscale container needs that the base image does not
+# provide. Lives only on this branch; main has no counterpart, which is what
+# keeps it out of every merge.
+#
+# PHP toolchain for Laravel development, plus direnv — the work-runtime puts
+# its `bin/work` on PATH through direnv.
 #
 # PHP 8.5 is both the target and a hard floor. SQLite wants IMMEDIATE
 # transactions — DEFERRED takes a read lock and returns SQLITE_BUSY when it

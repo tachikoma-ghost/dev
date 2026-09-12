@@ -19,7 +19,7 @@ RUN /setup/bash.sh
 RUN /setup/nvim.sh
 RUN /setup/agent.sh
 RUN /setup/bun.sh
-RUN /setup/php.sh
+RUN /setup/unitscale.sh
 #RUN /setup/icp.sh
 #RUN /setup/rust.sh
 RUN /setup/section3.sh
