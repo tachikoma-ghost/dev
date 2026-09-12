@@ -58,8 +58,8 @@ fi
 if [[ -z "$project" ]]; then
 	echo "Couldn't detect project, please provide a project name"
 	exit 1
-elif [[ ! "$project" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-	echo "Invalid project name '$project'. Only letters, numbers, underscores, and hyphens allowed."
+elif [[ ! "$project" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+	echo "Invalid project name '$project'. Lowercase letters, numbers and inner hyphens only, max 63 characters."
 	exit 7
 fi
 
@@ -146,6 +146,7 @@ echo "${project}" > "$STATE_DIR/last.project"
 cd "${HOME}/projects/${project}/dev"
 
 container="$project-dev-1"
+export DEV_HOSTNAME="$project"
 
 # function to show usage information
 help ()

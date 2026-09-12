@@ -1,6 +1,9 @@
 {
   "attribution": {
     "commit": "",
-    "pr": ""
-  }
+    "pr": "",
+    "sessionUrl": false
+  },
+  "remoteControlAtStartup": false,
+  "isolatePeerMachines": true
 }
