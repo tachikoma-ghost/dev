@@ -1,5 +1,12 @@
 FROM mcr.microsoft.com/devcontainers/typescript-node
 
+# The build has no controlling tty; without this debconf tries Dialog,
+# Readline and Teletype in turn and logs each failure before falling back
+# to Noninteractive anyway. ARG rather than ENV so it applies to the build
+# only and does not leak into the running container, where an interactive
+# apt should still be allowed to ask.
+ARG DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /home/node
 COPY setup /setup
 

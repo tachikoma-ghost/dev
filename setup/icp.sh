@@ -20,7 +20,7 @@ npm i -g ic-mops
 npm install -g mo-fmt
 
 # plantuml
-sudo apt -y install plantuml
+sudo apt-get -y install plantuml
 # too old, overwrite with newer version
 wget https://github.com/plantuml/plantuml/releases/download/v1.2023.9/plantuml.jar
 sudo mv plantuml.jar /usr/share/plantuml/plantuml.jar
