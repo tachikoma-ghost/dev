@@ -52,6 +52,32 @@ All other files will be added per project as needed:
 8. Enable port forwarding to the host `dev ports 3000 8080:80`,
    in this case port 3000 and 8080 of the host will be forwarded to port 3000 and 80 of the container
 
+## Updating
+
+Pull first, then apply. `dev upgrade` runs `git pull` here and in `nvim/`, and stops there. It does not build or restart anything.
+What you need after that depends on what changed.
+
+| Changed | Command |
+|---|---|
+| `Dockerfile`, `setup/*.sh` | `dev build`, then `dev start` |
+| `docker-compose.yml` | `dev start` |
+| `bin/dev`, `bin/ports` | nothing, they run on the host |
+
+`dev start` is `docker-compose up -d`, not `docker-compose start`.
+It recreates the container when the compose config or the image changed, and leaves it alone otherwise, so it is safe to run at any time.
+It never builds: skip `dev build` and it will happily keep the old image.
+
+Recreating replaces the running container, and anything live inside it goes too: shells, tmux sessions, background processes. The `/workspace` bind survives, the home directory does not.
+
+**Getting newer packages.** An unchanged `Dockerfile` means every layer is a cache hit, so a plain `dev build` is fast and changes nothing. That also means it does not pick up new versions: a `RUN` layer is cached on the command string, not on what the command would download, so `curl … | bash` installers stay at whatever version they first built. Two separate needs:
+
+```
+dev build --no-cache      # re-run every step: new versions of curl-installed tools
+dev build --pull          # newer base image: distribution package updates
+```
+
+Arguments are passed through to `docker-compose`, so the two combine.
+
 ## AI agents
 
 `setup/agent.sh` installs Claude Code, opencode and the Gemini CLI.
