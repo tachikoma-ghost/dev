@@ -136,6 +136,38 @@ The block is needed because Docker's default seccomp profile blocks `clone(CLONE
 A narrower custom profile instead of `unconfined` is possible, but it still has to allow `mount`, `unshare`, `setns`, `pivot_root` and the new mount API, so it buys less than it looks like it should.
 Sub-containers can be handed anything the dev container can see, so keep the paths you mount into them narrow.
 
+## Booting the image as a VM (bin/devvm)
+
+`bin/devvm` boots the same image under cloud-hypervisor instead of running it as
+a container. Inside, root is real root and docker is the ordinary rootful
+daemon; the hypervisor is what keeps that away from the host, so it concedes
+nothing a privileged container or a bound host socket would have conceded.
+
+    devvm <project> deps     # cloud-hypervisor (pinned + checksummed), virtiofsd, passt, /dev/kvm
+    devvm <project> image    # docker build -> docker export -> ext4 rootfs
+    devvm <project> kernel   # extract a PVH vmlinux from the image's kernel
+    devvm <project> start
+    devvm <project> ssh
+
+**Host permissions: membership of the `kvm` group, and nothing else.** passt
+does the networking in userspace, so no tap device and no CAP_NET_ADMIN;
+`mke2fs -d` builds the rootfs without root; virtiofsd runs unprivileged because
+it only ever shares your own files.
+
+**`/workspace` is virtio-fs**, not a bind mount, and virtio-fs is slower than a
+bind mount on metadata-heavy work -- `git status`, `bun install`, anything
+walking `node_modules`. Keep docker's storage on the VM's own disk, never on the
+share.
+
+**The kernel has to be a PVH entry point.** cloud-hypervisor does not boot the
+compressed bzImage distros ship, so `devvm kernel` extracts a vmlinux and checks
+for the Xen PVH note before you find out the hard way at boot. If your kernel
+lacks it, build one per cloud-hypervisor's `docs/custom_kernel.md`.
+
+**Untested.** Written against the documented interfaces of cloud-hypervisor
+v53.0, virtiofsd and passt, but never booted -- there was no KVM on the machine
+it was written on. Expect the first run to need corrections.
+
 ## A daemon in a VM, instead
 
 Rootless DinD does not work on every host. On a 6.18.40 kernel with rootlesskit

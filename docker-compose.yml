@@ -23,10 +23,6 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-    # The daemon runs in a VM on the host, so nothing here creates a user
-    # namespace and the security_opt block rootless DinD needed is gone.
-    environment:
-      DOCKER_HOST: ${DOCKER_HOST:-tcp://host.docker.internal:2375}
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+    # No security_opt block: the image is booted as a VM by bin/devvm, so
+    # nothing here creates a user namespace.
     command: /bin/bash -c "echo ready; sleep infinity"
