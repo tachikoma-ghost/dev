@@ -45,13 +45,20 @@ fetch() { # url sha256 dest
     echo "devvm: installed $dest"
 }
 
+# The host tools come from the environment, not from downloads: on NixOS that
+# is `nix-shell vm-shell.nix`, which pins them with everything else. The static
+# release binaries are the fallback for hosts without them packaged.
 cmd_deps() {
-    local base=https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/$CHV_VERSION
-    fetch "$base/cloud-hypervisor-static" "$CHV_SHA256" "$cache/bin/cloud-hypervisor"
-    fetch "$base/ch-remote-static" "$CHR_SHA256" "$cache/bin/ch-remote"
-    need virtiofsd "apt install virtiofsd"
-    need passt "apt install passt"
-    [ -r /dev/kvm ] && [ -w /dev/kvm ] || die "/dev/kvm is not accessible; add yourself to the kvm group and re-login"
+    if ! command -v cloud-hypervisor >/dev/null; then
+        echo "devvm: cloud-hypervisor not on PATH; fetching the static release instead" >&2
+        local base=https://github.com/cloud-hypervisor/cloud-hypervisor/releases/download/$CHV_VERSION
+        fetch "$base/cloud-hypervisor-static" "$CHV_SHA256" "$cache/bin/cloud-hypervisor"
+        fetch "$base/ch-remote-static" "$CHR_SHA256" "$cache/bin/ch-remote"
+    fi
+    need virtiofsd "nix-shell vm-shell.nix"
+    need passt "nix-shell vm-shell.nix"
+    need mke2fs "nix-shell vm-shell.nix"
+    [ -r /dev/kvm ] && [ -w /dev/kvm ] || die "/dev/kvm is not accessible; on NixOS add yourself to the kvm group: users.users.<you>.extraGroups = [ \"kvm\" ]"
     echo "devvm: dependencies OK"
 }
 
@@ -117,7 +124,7 @@ cmd_start() {
     virtiofsd --socket-path="$vfsd" --shared-dir="$HOME/projects/$project" --sandbox=none &
     passt --socket "$cache/passt.sock" --tcp-ports "$ssh_port:22" &
 
-    "$cache/bin/cloud-hypervisor" \
+    "$(command -v cloud-hypervisor || echo "$cache/bin/cloud-hypervisor")" \
         --api-socket "$api" \
         --kernel "$kernel" \
         --initramfs "$cache/initrd" \
@@ -133,8 +140,8 @@ cmd_start() {
 }
 
 cmd_ssh() { ssh -p "$ssh_port" -o StrictHostKeyChecking=accept-new node@127.0.0.1 "${@:-}"; }
-cmd_stop() { [ -S "$api" ] || die "not running"; "$cache/bin/ch-remote" --api-socket "$api" shutdown-vmm; }
-cmd_status() { [ -S "$api" ] && "$cache/bin/ch-remote" --api-socket "$api" info || echo "devvm: not running"; }
+cmd_stop() { [ -S "$api" ] || die "not running"; "$(command -v ch-remote || echo "$cache/bin/ch-remote")" --api-socket "$api" shutdown-vmm; }
+cmd_status() { [ -S "$api" ] && "$(command -v ch-remote || echo "$cache/bin/ch-remote")" --api-socket "$api" info || echo "devvm: not running"; }
 
 case "$command" in
     deps)   cmd_deps ;;
