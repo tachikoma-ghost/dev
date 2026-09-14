@@ -87,6 +87,9 @@ UNIT
     echo "workspace /workspace virtiofs defaults 0 0" >>"$tmp/etc/fstab"
 
     cp "$tmp/boot/vmlinuz-"* "$cache/vmlinuz" 2>/dev/null || die "no kernel in the image; is setup/vm.sh enabled in the Dockerfile?"
+    # Debian builds virtio_blk as a module, so a direct kernel boot without an
+    # initramfs cannot mount /dev/vda and panics.
+    cp "$tmp/boot/initrd.img-"* "$cache/initrd" 2>/dev/null || die "no initramfs in the image; update-initramfs may have failed during the build"
     mke2fs -q -t ext4 -d "$tmp" -F "$rootfs" "$disk_size" || die "mke2fs failed"
     rm -rf "$tmp"
     echo "devvm: built $rootfs ($disk_size)"
@@ -107,6 +110,7 @@ cmd_kernel() {
 cmd_start() {
     [ -f "$rootfs" ] || die "no rootfs; run 'devvm $project image'"
     [ -f "$kernel" ] || die "no kernel; run 'devvm $project kernel'"
+    [ -f "$cache/initrd" ] || die "no initramfs; run 'devvm $project image'"
     [ -S "$api" ] && die "already running (api socket $api exists)"
     mkdir -p "$cache"
 
@@ -116,6 +120,7 @@ cmd_start() {
     "$cache/bin/cloud-hypervisor" \
         --api-socket "$api" \
         --kernel "$kernel" \
+        --initramfs "$cache/initrd" \
         --cmdline "console=hvc0 root=/dev/vda rw" \
         --disk path="$rootfs" \
         --fs tag=workspace,socket="$vfsd" \
