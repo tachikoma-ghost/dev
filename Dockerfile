@@ -29,8 +29,9 @@ RUN /setup/bun.sh
 RUN /setup/section3.sh
 RUN /setup/signalshell.sh
 
-# The docker client, pointed at a daemon in a VM on the host by DOCKER_HOST in
-# docker-compose.yml. Rootless DinD is not usable on this kernel: see README.md.
-RUN /setup/docker-cli.sh
+# Booted as a VM by bin/devvm, not run as a container: its own kernel and a
+# normal rootful docker. Rootless DinD is not usable on this kernel; a VM gives
+# real root without giving it away on the host. See README.md.
+RUN /setup/vm.sh
 
 ENTRYPOINT ["/setup/entrypoint.sh"]
