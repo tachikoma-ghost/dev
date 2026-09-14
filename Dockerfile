@@ -29,9 +29,8 @@ RUN /setup/bun.sh
 RUN /setup/section3.sh
 RUN /setup/signalshell.sh
 
-# Rootless Docker-in-Docker. Needs the security_opt block in
-# docker-compose.yml, and section3 above to start the daemon: dind.sh
-# declares it as a service in ~/.config/section3/conf.d/. See README.md.
-RUN /setup/dind.sh
+# The docker client, pointed at a daemon in a VM on the host by DOCKER_HOST in
+# docker-compose.yml. Rootless DinD is not usable on this kernel: see README.md.
+RUN /setup/docker-cli.sh
 
 ENTRYPOINT ["/setup/entrypoint.sh"]
