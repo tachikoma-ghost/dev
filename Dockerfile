@@ -25,4 +25,4 @@ RUN /setup/agent.sh
 #RUN /setup/signalshell.sh
 #RUN /setup/dind.sh  # requires section3 to start the daemon automatically. See README.md
 
-ENTRYPOINT ["/bin/bash", "-c", "if [ -f /workspace/init.sh ]; then /workspace/init.sh; else sleep infinity; fi"]
+ENTRYPOINT ["/setup/entrypoint.sh"]
