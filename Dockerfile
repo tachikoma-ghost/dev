@@ -12,6 +12,7 @@ RUN echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >/etc/sudoers.d/keep-frontend
 
 USER node
 
+RUN /setup/updates.sh
 RUN USER=node /setup/sshd.sh
 RUN /setup/tmux.sh
 RUN /setup/terminfo.sh
