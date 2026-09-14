@@ -136,6 +136,32 @@ The block is needed because Docker's default seccomp profile blocks `clone(CLONE
 A narrower custom profile instead of `unconfined` is possible, but it still has to allow `mount`, `unshare`, `setns`, `pivot_root` and the new mount API, so it buys less than it looks like it should.
 Sub-containers can be handed anything the dev container can see, so keep the paths you mount into them narrow.
 
+## Booting as a NixOS microVM (flake.nix)
+
+On a NixOS host this is the shorter path. `microvm.nix` supplies the guest
+kernel, the initrd, the virtiofs shares and the networking, all of which
+`bin/devvm` does by hand -- and both bugs found in that script so far were in
+exactly those parts.
+
+    nix run .#unit          # boot it
+    ssh -p 2222 node@127.0.0.1
+
+The guest is NixOS and is **not** a dev environment: it runs docker and sshd,
+and the tooling lives in the work runtime's containers, which bring their own
+image. That is what makes the guest OS a free choice.
+
+`microvm/unit.nix` shares `~/projects/unit` at `/workspace` over virtiofs and
+gives docker its own block device, because image layers on a virtiofs share are
+both slow and a way to leak guest uids into a host directory.
+
+It starts on qemu rather than cloud-hypervisor on purpose: user-mode networking
+with port forwarding is best supported there, so the first boot changes one
+thing instead of three. Switching is one word once networking is proven, and
+boot time does not matter for a VM that runs all day.
+
+**Untested.** Written without a NixOS host to evaluate it on. Expect
+`microvm.nix` option names to need checking against the version you get.
+
 ## Booting the image as a VM (bin/devvm)
 
 `bin/devvm` boots the same image under cloud-hypervisor instead of running it as
