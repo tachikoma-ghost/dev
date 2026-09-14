@@ -136,25 +136,25 @@ The block is needed because Docker's default seccomp profile blocks `clone(CLONE
 A narrower custom profile instead of `unconfined` is possible, but it still has to allow `mount`, `unshare`, `setns`, `pivot_root` and the new mount API, so it buys less than it looks like it should.
 Sub-containers can be handed anything the dev container can see, so keep the paths you mount into them narrow.
 
-## A daemon in a VM, instead
+## Why DinD needs CAP_SYS_PTRACE
 
-Rootless DinD does not work on every host. On a 6.18.40 kernel with rootlesskit
-3.1.0 it fails at `newuidmap: write to uid_map failed: Operation not permitted`,
-and that is not a configuration problem: real root can write the same map for
-any namespace created with `unshare`, but not for rootlesskit's own child.
-Capabilities, seccomp, AppArmor, `/etc/subuid` and the setuid helpers were all
-eliminated by measurement.
+On a host running `kernel.yama.ptrace_scope=1`, rootless DinD fails at
+`newuidmap: write to uid_map failed: Operation not permitted`.
 
-The alternative that keeps the isolation intent is a VM on the host running a
-normal rootful daemon, with the container holding only the client. Guest root is
-not host root, so it concedes nothing the socket bind would have.
+Writing another process's `uid_map` requires ptrace access to it, not merely
+`CAP_SETUID`. Yama at scope 1 grants that only along the ancestor line, and
+`newuidmap` is a *sibling* of the process it maps, not an ancestor. A
+non-ancestor needs `CAP_SYS_PTRACE`, which is absent from Docker's default
+capability set -- so uid 0 in the container does not have it either, capabilities
+being bounded by that set.
 
-**To enable**, uncomment `RUN /setup/docker-cli.sh` in the `Dockerfile` and set
-`DOCKER_HOST` in `docker-compose.yml`. The `security_opt` block stays commented:
-without a local daemon nothing here creates a user namespace.
+`cap_add: SYS_PTRACE` is therefore required alongside `security_opt`. It lets
+processes in the container ptrace each other and confers nothing on the host.
+Setting `kernel.yama.ptrace_scope=0` would also work and is a worse trade: it
+weakens ptrace restrictions for the whole machine.
 
-The daemon's TCP port grants root *in the VM* to whoever reaches it, so bind it
-to an interface only the host and its containers can see.
+Hosts with `ptrace_scope=0` need neither, which is why this does not reproduce
+everywhere.
 
 **File ownership.** The rootless daemon maps container uid 0 to `node` and everything above it into the subuid range, so a container running as uid 1000 writes files that arrive as 100999 outside.
 Run containers as root to keep bind-mounted files owned by `node`.

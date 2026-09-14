@@ -23,10 +23,13 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-    # The daemon runs in a VM on the host, so nothing here creates a user
-    # namespace and the security_opt block rootless DinD needed is gone.
-    environment:
-      DOCKER_HOST: ${DOCKER_HOST:-tcp://host.docker.internal:2375}
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+    # Required for rootless Docker-in-Docker; see README.md.
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+    # newuidmap writes the child's uid_map, which needs ptrace access to it.
+    # Under kernel.yama.ptrace_scope=1 only ancestors have that, and newuidmap
+    # is the child's sibling, so without this the map fails with EPERM.
+    cap_add:
+      - SYS_PTRACE
     command: /bin/bash -c "echo ready; sleep infinity"
