@@ -12,6 +12,10 @@ RUN echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >/etc/sudoers.d/keep-frontend
 
 USER node
 
+# claude, section3 and signalshell install here. .bashrc adds it for interactive
+# shells, which the entrypoint is not.
+ENV PATH=/home/node/.local/bin:$PATH
+
 RUN /setup/updates.sh
 RUN USER=node /setup/sshd.sh
 RUN /setup/tmux.sh
