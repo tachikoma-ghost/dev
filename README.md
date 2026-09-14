@@ -119,7 +119,7 @@ The rootless daemon runs as `node` inside a user namespace: container root maps 
 
 1. `docker-compose.yml`: the `security_opt` block, without which the daemon cannot create its user namespace and exits immediately
 2. `Dockerfile`: the `RUN /setup/dind.sh` line
-3. `Dockerfile`: the `RUN /setup/section3.sh` line, which is what starts the daemon. `setup/dind.sh` declares it as a service in `~/.config/section3/conf.d/`, and section3 reads it. Without section3, start it yourself: `XDG_RUNTIME_DIR=/run/user/$(id -u) dockerd-rootless.sh`
+3. `Dockerfile`: the `RUN /setup/section3.sh` line, which installs the supervisor the entrypoint then runs. `setup/dind.sh` declares dockerd as a service in `~/.config/section3/conf.d/`, and section3 reads it on start. Without section3, start it yourself: `XDG_RUNTIME_DIR=/run/user/$(id -u) dockerd-rootless.sh`
 
 Then `dev build` and `dev start`.
 

@@ -30,4 +30,4 @@ RUN /setup/signalshell.sh
 # declares it as a service in ~/.config/section3/conf.d/. See README.md.
 RUN /setup/dind.sh
 
-ENTRYPOINT ["/bin/bash", "-c", "if [ -f /workspace/init.sh ]; then /workspace/init.sh; else sleep infinity; fi"]
+ENTRYPOINT ["/setup/entrypoint.sh"]
