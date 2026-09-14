@@ -23,8 +23,10 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-    # Required for rootless Docker-in-Docker; see README.md.
-    security_opt:
-      - seccomp=unconfined
-      - apparmor=unconfined
+    # The daemon runs in a VM on the host, so nothing here creates a user
+    # namespace and the security_opt block rootless DinD needed is gone.
+    environment:
+      DOCKER_HOST: ${DOCKER_HOST:-tcp://host.docker.internal:2375}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     command: /bin/bash -c "echo ready; sleep infinity"
