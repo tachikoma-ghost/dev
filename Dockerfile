@@ -1,7 +1,14 @@
 FROM mcr.microsoft.com/devcontainers/typescript-node
 
+# The build has no tty; without this debconf logs a Dialog/Readline/Teletype
+# fallback chain. ARG, not ENV, so interactive apt in the container still asks.
+ARG DEBIAN_FRONTEND=noninteractive
+
 WORKDIR /home/node
 COPY setup /setup
+
+# Let DEBIAN_FRONTEND pass sudo's env_reset.
+RUN echo 'Defaults env_keep += "DEBIAN_FRONTEND"' >/etc/sudoers.d/keep-frontend
 
 USER node
 
