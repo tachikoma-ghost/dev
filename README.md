@@ -161,7 +161,12 @@ other side.
 To start it at boot instead of in a foreground shell, the host takes the
 `microvm.nix` host module and declares the guest:
 
-    microvm.vms.unit.flake = "/home/ma/projects/unit/dev";
+    microvm.vms.unit.flake = "/path/to/projects/unit/dev";
+
+The shared host directory is **not** in the repo -- this one is public. Create
+`microvm/local.nix` (gitignored) before the first boot:
+
+    { projectDir = "/home/you/projects/unit"; }
 
 That, `/dev/kvm` access, and docker on the host for `bin/devvm image` are the
 only host-side requirements; nothing here needs root or a host daemon change.

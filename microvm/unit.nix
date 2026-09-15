@@ -4,8 +4,14 @@
 { config, lib, pkgs, ... }:
 
 let
-  # The host directory shared into the guest.
-  projectDir = "/home/ma/projects/unit";
+  # The host directory shared into the guest. Deliberately not in the repo:
+  # this one is public, and the path names somebody's home. Put it in
+  # microvm/local.nix, which is gitignored:
+  #
+  #     { projectDir = "/home/you/projects/unit"; }
+  local = if builtins.pathExists ./local.nix then import ./local.nix else { };
+  projectDir = local.projectDir or (throw
+    "microvm: set projectDir in microvm/local.nix -- see README.md");
   sshKey = ../setup/user/key.pub;
 in
 {
