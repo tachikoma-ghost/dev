@@ -74,6 +74,13 @@ in
         mountPoint = "/var/lib/signalshell";
         size = 64;
       }
+      # The root filesystem is tmpfs, so without this the ssh key for the forge
+      # and tea's credentials would have to be reinstalled after every boot.
+      {
+        image = "home.img";
+        mountPoint = "/home/node";
+        size = 2048;
+      }
     ];
 
     interfaces = [{
@@ -90,6 +97,12 @@ in
   };
 
   virtualisation.docker.enable = true;
+
+  # The work runtime drives the daemon from here: its dispatcher is TypeScript
+  # (bun), it clones over ssh (git, openssh), and it resolves issue branches
+  # from the forge (tea). Verified against the demo stack, which builds and
+  # serves on this daemon.
+  environment.systemPackages = with pkgs; [ bun git openssh tea curl ];
 
   users.users.node = {
     isNormalUser = true;
@@ -110,6 +123,9 @@ in
   # node has no password (the ssh key is optional and absent by default), so
   # without this a foreground boot ends at a login prompt nobody can answer.
   services.getty.autologinUser = "node";
+
+  # /home/node is a freshly created ext4 volume, so it starts out owned by root.
+  systemd.tmpfiles.rules = [ "d /home/node 0700 node users -" ];
 
   networking.hostName = "unit-vm";
   system.stateVersion = "25.05";
