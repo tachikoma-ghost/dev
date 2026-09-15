@@ -104,6 +104,11 @@ in
     settings.PasswordAuthentication = false;
   };
 
+  # The console is reachable only from the terminal that launched the VM, and
+  # node has no password (the ssh key is optional and absent by default), so
+  # without this a foreground boot ends at a login prompt nobody can answer.
+  services.getty.autologinUser = "node";
+
   networking.hostName = "unit-vm";
   system.stateVersion = "25.05";
 }
