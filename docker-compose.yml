@@ -23,6 +23,6 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-    # No security_opt block: the image is booted as a VM by bin/devvm, so
-    # nothing here creates a user namespace.
+    # No security_opt block: nothing in this container creates a user
+    # namespace. Nested containers run in the microVM instead, see README.md.
     command: /bin/bash -c "echo ready; sleep infinity"

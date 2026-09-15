@@ -30,9 +30,4 @@ RUN /setup/unitscale.sh
 RUN /setup/section3.sh
 RUN /setup/signalshell.sh
 
-# Booted as a VM by bin/devvm, not run as a container: its own kernel and a
-# normal rootful docker. Rootless DinD is not usable on this kernel; a VM gives
-# real root without giving it away on the host. See README.md.
-RUN /setup/vm.sh
-
 ENTRYPOINT ["/setup/entrypoint.sh"]
