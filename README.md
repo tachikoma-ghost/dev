@@ -166,16 +166,14 @@ To start it at boot instead of in a foreground shell, the host takes the
 The shared host directory is **not** in the repo -- this one is public. It comes
 from the environment, and the run has to be impure to read it:
 
-    out=$(DEV_PROJECT_DIR="$PWD/.." nix build --impure --no-link --print-out-paths .#unit)
-    $out/bin/virtiofsd-run &     # the shares are virtiofs; qemu needs its sockets
-    $out/bin/microvm-run
+    DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
 
-`nix run .#unit` alone is not enough: it starts the VM and not the virtiofsd
-daemons behind `microvm.shares`, so qemu fails with `Failed to connect to
-unit-vm-virtiofs-ro-store.sock`. Only the systemd host module
-(`microvm.vms.<name>`) starts both in the right order. Switching the shares to
-`proto = "9p"` would also work -- qemu implements 9p itself, no daemon -- at a
-cost in filesystem performance.
+The shares are **9p**, so a foreground boot needs nothing but `kvm` group
+membership. virtiofs is faster but needs a `virtiofsd` per share, and the
+command-line runner's supervisor expects root to start them (`Can't drop
+privilege as nonroot user`) -- only the systemd host module starts them for
+you. So: 9p while iterating, and switch `microvm.shares[].proto` to
+`"virtiofs"` once the VM is declared with `microvm.vms.<name>` on the host.
 
 A gitignored file will not work for this: flakes only see git-tracked files, so
 `microvm/local.nix` is invisible to evaluation unless you track it in a private
