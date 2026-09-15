@@ -119,7 +119,17 @@ in
   services.getty.autologinUser = "node";
 
   # /home/node is a freshly created ext4 volume, so it starts out owned by root.
-  systemd.tmpfiles.rules = [ "d /home/node 0700 node users -" ];
+  # Parent first: a rule for a deep path creates the directories above it owned
+  # by root, and systemd-tmpfiles then refuses to descend through them ("unsafe
+  # path transition"), which left ~/.local root-owned and signalshell unable to
+  # create its state directory. Z repairs ownership that a previous boot got
+  # wrong -- the home disk outlives the mistake, so creating it correctly is
+  # not enough on its own. A mode of "-" leaves file modes alone.
+  systemd.tmpfiles.rules = [
+    "d /home/node 0700 node users -"
+    "d /home/node/.local 0755 node users -"
+    "Z /home/node/.local - node users -"
+  ];
 
   networking.hostName = "unit-vm";
   system.stateVersion = "25.05";
