@@ -28,6 +28,14 @@ in
   # `signalshell serve` refuses to start without tmux: sessions are tmux panes.
   environment.systemPackages = [ signalshell pkgs.tmux pkgs.rsync ];
 
+  # The control socket lives in the state directory, so `signalshell invite` in
+  # a login shell must resolve to the same place the service writes -- without
+  # this it reports "signalshell server is not running" while the service is up.
+  systemd.tmpfiles.rules = [
+    "d /home/node/.local/state 0755 node users -"
+    "L+ /home/node/.local/state/signalshell - - - - /var/lib/signalshell"
+  ];
+
   systemd.services.signalshell = {
     description = "signalshell remote access";
     wantedBy = [ "multi-user.target" ];
