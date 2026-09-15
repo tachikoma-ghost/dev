@@ -35,19 +35,25 @@ in
     vcpu = 4;
     mem = 8192;
 
+    # 9p, not virtiofs: virtiofs needs a virtiofsd process per share, and the
+    # command-line runner's supervisor expects to be root to start them. 9p is
+    # implemented by qemu itself, so a foreground boot needs nothing but kvm
+    # access. It is the slower of the two -- switch both to "virtiofs" once the
+    # VM is declared in the host's NixOS config, where systemd starts virtiofsd
+    # (as root) in the right order.
     shares = [
       # A NixOS guest runs from the host's store; without this it has no system.
       {
         tag = "ro-store";
         source = "/nix/store";
         mountPoint = "/nix/.ro-store";
-        proto = "virtiofs";
+        proto = "9p";
       }
       {
         tag = "workspace";
         source = projectDir;
         mountPoint = "/workspace";
-        proto = "virtiofs";
+        proto = "9p";
       }
     ];
 
