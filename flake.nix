@@ -17,9 +17,12 @@
         modules = [ microvm.nixosModules.microvm ./microvm/unit.nix ];
       };
 
-      # nix run .#unit   -- boots it in the foreground
-      packages.${system}.unit =
-        self.nixosConfigurations.unit.config.microvm.declaredRunner;
-      packages.${system}.default = self.packages.${system}.unit;
+      # nix run .#unit   -- boots it in the foreground.
+      # One attribute set: two `packages.${system}.<name> =` bindings are a
+      # duplicate dynamic attribute, which nix rejects at parse time.
+      packages.${system} = rec {
+        unit = self.nixosConfigurations.unit.config.microvm.declaredRunner;
+        default = unit;
+      };
     };
 }
