@@ -67,15 +67,9 @@ in
         mountPoint = "/var/lib/docker";
         size = 20480;
       }
-      # signalshell's host key lives here. Without a volume it would be minted
-      # afresh on every rebuild, invalidating the saved connection string.
-      {
-        image = "state.img";
-        mountPoint = "/var/lib/signalshell";
-        size = 64;
-      }
-      # The root filesystem is tmpfs, so without this the ssh key for the forge
-      # and tea's credentials would have to be reinstalled after every boot.
+      # The root filesystem is tmpfs, so without this the ssh key for the forge,
+      # tea's credentials and signalshell's host key would all have to be
+      # recreated after every boot.
       {
         image = "home.img";
         mountPoint = "/home/node";
