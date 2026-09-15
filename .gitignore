@@ -1,3 +1,4 @@
 /cache/
 /container
 setup/user/key.pub
+microvm/local.nix
