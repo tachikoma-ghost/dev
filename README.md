@@ -163,10 +163,14 @@ To start it at boot instead of in a foreground shell, the host takes the
 
     microvm.vms.unit.flake = "/path/to/projects/unit/dev";
 
-The shared host directory is **not** in the repo -- this one is public. Create
-`microvm/local.nix` (gitignored) before the first boot:
+The shared host directory is **not** in the repo -- this one is public. It comes
+from the environment, and the run has to be impure to read it:
 
-    { projectDir = "/home/you/projects/unit"; }
+    DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
+
+A gitignored file will not work for this: flakes only see git-tracked files, so
+`microvm/local.nix` is invisible to evaluation unless you track it in a private
+fork, which is the other supported way to set `projectDir`.
 
 That, `/dev/kvm` access, and docker on the host for `bin/devvm image` are the
 only host-side requirements; nothing here needs root or a host daemon change.

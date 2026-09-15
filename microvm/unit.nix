@@ -5,13 +5,21 @@
 
 let
   # The host directory shared into the guest. Deliberately not in the repo:
-  # this one is public, and the path names somebody's home. Put it in
-  # microvm/local.nix, which is gitignored:
+  # this one is public, and the path names somebody's home.
   #
-  #     { projectDir = "/home/you/projects/unit"; }
+  # It comes from the environment, because a flake only sees git-tracked files:
+  # a gitignored microvm/local.nix is invisible to evaluation, which is what
+  # made the first boot attempt fail.
+  #
+  #     DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
+  #
+  # microvm/local.nix still works if you track it in a private fork.
   local = if builtins.pathExists ./local.nix then import ./local.nix else { };
-  projectDir = local.projectDir or (throw
-    "microvm: set projectDir in microvm/local.nix -- see README.md");
+  envDir = builtins.getEnv "DEV_PROJECT_DIR";
+  projectDir = local.projectDir or (
+    if envDir != "" then envDir
+    else throw ("microvm: set DEV_PROJECT_DIR and run with --impure, e.g. "
+      + "DEV_PROJECT_DIR=\"$PWD/..\" nix run --impure .#unit -- see README.md"));
   sshKey = ../setup/user/key.pub;
 in
 {
