@@ -34,6 +34,12 @@ in
     wants = [ "network-online.target" ];
     after = [ "network-online.target" ];
 
+    # systemd's default PATH has neither bash nor tmux, so `serve` died on
+    # every start with `spawn PTY: exec: "bash": executable file not found`.
+    # This is also the PATH every pane inherits, so the system profile belongs
+    # here too -- otherwise a session opens without docker on it.
+    path = [ pkgs.bashInteractive pkgs.tmux "/run/current-system/sw/bin" ];
+
     serviceConfig = {
       ExecStart = "${lib.getExe signalshell} serve";
       User = "node";
