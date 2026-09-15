@@ -16,6 +16,11 @@ let
   # microvm/local.nix still works if you track it in a private fork.
   local = if builtins.pathExists ./local.nix then import ./local.nix else { };
   envDir = builtins.getEnv "DEV_PROJECT_DIR";
+
+  # 9p by default so a foreground `nix run` needs no root; virtiofs once the VM
+  # is host-managed and systemd starts virtiofsd for it. See microvm/host.nix.
+  envProto = builtins.getEnv "DEV_SHARE_PROTO";
+  shareProto = if envProto != "" then envProto else "9p";
   projectDir = local.projectDir or (
     if envDir != "" then envDir
     else throw ("microvm: set DEV_PROJECT_DIR and run with --impure, e.g. "
@@ -35,25 +40,22 @@ in
     vcpu = 4;
     mem = 8192;
 
-    # 9p, not virtiofs: virtiofs needs a virtiofsd process per share, and the
-    # command-line runner's supervisor expects to be root to start them. 9p is
-    # implemented by qemu itself, so a foreground boot needs nothing but kvm
-    # access. It is the slower of the two -- switch both to "virtiofs" once the
-    # VM is declared in the host's NixOS config, where systemd starts virtiofsd
-    # (as root) in the right order.
+    # Protocol from DEV_SHARE_PROTO, 9p by default: virtiofs needs a virtiofsd
+    # per share, and the command-line runner supervises them expecting to be
+    # root, while qemu implements 9p itself.
     shares = [
       # A NixOS guest runs from the host's store; without this it has no system.
       {
         tag = "ro-store";
         source = "/nix/store";
         mountPoint = "/nix/.ro-store";
-        proto = "9p";
+        proto = shareProto;
       }
       {
         tag = "workspace";
         source = projectDir;
         mountPoint = "/workspace";
-        proto = "9p";
+        proto = shareProto;
       }
     ];
 
