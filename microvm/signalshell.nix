@@ -36,9 +36,21 @@ in
 
     # systemd's default PATH has neither bash nor tmux, so `serve` died on
     # every start with `spawn PTY: exec: "bash": executable file not found`.
-    # This is also the PATH every pane inherits, so the system profile belongs
-    # here too -- otherwise a session opens without docker on it.
-    path = [ pkgs.bashInteractive pkgs.tmux "/run/current-system/sw/bin" ];
+    # This is also the PATH every pane inherits, so everything a session is
+    # expected to use is named here. A bare "/run/current-system/sw/bin" string
+    # does not work: the option takes packages, and a session opened without
+    # docker, git, bun or tea on PATH.
+    path = with pkgs; [
+      bashInteractive
+      tmux
+      docker
+      git
+      openssh
+      bun
+      tea
+      curl
+      rsync
+    ];
 
     serviceConfig = {
       ExecStart = "${lib.getExe signalshell} serve";
