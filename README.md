@@ -143,8 +143,28 @@ kernel, the initrd, the virtiofs shares and the networking, all of which
 `bin/devvm` does by hand -- and both bugs found in that script so far were in
 exactly those parts.
 
-    nix run .#unit          # boot it
-    ssh -p 2222 node@127.0.0.1
+    nix run .#unit          # boot it in the foreground
+    signalshell invite tachikoma    # from inside, for remote access
+    ssh -p 2222 node@127.0.0.1      # only if setup/user/key.pub exists
+
+`signalshell serve` runs as a systemd unit from boot (`microvm/signalshell.nix`,
+a pinned release binary -- the guest has no checkout and no toolchain). It dials
+out to the relay, so the forwarded port is a convenience, not the way in.
+section3 is not used here: it exists because a container has no init, and this
+guest has systemd.
+
+Its host key lives on a small persistent volume at `/var/lib/signalshell`. That
+is deliberate: in the container the key lives in the image, so every rebuild
+mints a new identity and silently invalidates the connection string saved on the
+other side.
+
+To start it at boot instead of in a foreground shell, the host takes the
+`microvm.nix` host module and declares the guest:
+
+    microvm.vms.unit.flake = "/home/ma/projects/unit/dev";
+
+That, `/dev/kvm` access, and docker on the host for `bin/devvm image` are the
+only host-side requirements; nothing here needs root or a host daemon change.
 
 The guest is NixOS and is **not** a dev environment: it runs docker and sshd,
 and the tooling lives in the work runtime's containers, which bring their own
