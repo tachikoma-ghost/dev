@@ -28,14 +28,6 @@ in
   # `signalshell serve` refuses to start without tmux: sessions are tmux panes.
   environment.systemPackages = [ signalshell pkgs.tmux pkgs.rsync ];
 
-  # The control socket lives in the state directory, so `signalshell invite` in
-  # a login shell must resolve to the same place the service writes -- without
-  # this it reports "signalshell server is not running" while the service is up.
-  systemd.tmpfiles.rules = [
-    "d /home/node/.local/state 0755 node users -"
-    "L+ /home/node/.local/state/signalshell - - - - /var/lib/signalshell"
-  ];
-
   systemd.services.signalshell = {
     description = "signalshell remote access";
     wantedBy = [ "multi-user.target" ];
@@ -54,15 +46,16 @@ in
       Restart = "always";
       RestartSec = 5;
 
-      # The host key IS the guest's identity. On the container it lives in the
-      # image and every rebuild mints a new one, which silently invalidates the
-      # connection string saved on the other side -- an afternoon went into
-      # that on 2026-09-15. Here it goes on the persistent volume instead.
-      StateDirectory = "signalshell";
-      Environment = [
-        "XDG_STATE_HOME=/var/lib"
-        "HOME=/home/node"
-      ];
+      # The host key IS the guest's identity: in a container it lives in the
+      # image, so every rebuild mints a new one and silently invalidates the
+      # connection string saved on the other side. Here it lands in node's home,
+      # which is a persistent volume -- and, being the default location, it is
+      # also where `signalshell invite` in a login shell looks for the control
+      # socket. Pointing the service somewhere else made the CLI report the
+      # server as not running while it was up.
+      Environment = [ "HOME=/home/node" ];
+      # The identity is on that volume, so do not start before it is mounted.
+      RequiresMountsFor = "/home/node";
     };
   };
 }
