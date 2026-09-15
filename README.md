@@ -108,152 +108,80 @@ During `dev init`, the nvim configuration is cloned into `./dev/nvim` and mounte
 
 ## Docker in Docker
 
-Some tools bring their own containers: Laravel Sail, Testcontainers, a project's own `docker compose`.
-Those need a real Docker daemon rather than a socket pointed at the host's, so the container ships an optional rootless one.
+Not possible in this container, and not for want of a flag. Two kernel rules
+decide it, both measured on a 6.18.40 host in September 2026:
 
-It is rootless rather than the usual privileged Docker-in-Docker.
-A privileged daemon can mount host block devices and load kernel modules, so anything able to reach it has root on the host by design.
-The rootless daemon runs as `node` inside a user namespace: container root maps to an unprivileged uid, block devices cannot be mounted at all, and read-only mounts stay read-only.
+1. Writing a multi-range `uid_map` needs `CAP_SETUID` in the parent namespace
+   *and* the writer's euid to equal the namespace's owner. `newuidmap` is
+   setuid-root, so its euid is 0 while the namespace it must map is owned by an
+   unprivileged uid, and it can never satisfy both. Granting the capability as a
+   file capability instead (`chmod u-s` plus `setcap cap_setuid+ep`) fixes that
+   half: NixOS wraps it that way, Debian ships it setuid.
+2. A new procfs mount is refused unless the mounter already sees a fully visible
+   `/proc`. Docker's masked and read-only paths make it not visible, and those
+   mounts are locked, so nothing inside the container can undo them. Every
+   nested runtime needs to mount `/proc`, runc, crun, podman and buildah alike,
+   so this is not specific to Docker and swapping the runtime does not help.
 
-**To enable**, uncomment three lines, each commented and cross-referenced:
+Past the first rule the daemon starts, pulls images and initializes buildkit.
+It fails at the second, when runc mounts `/proc` for the container.
 
-1. `docker-compose.yml`: the `security_opt` block, without which the daemon cannot create its user namespace and exits immediately
-2. `Dockerfile`: the `RUN /setup/dind.sh` line
-3. `Dockerfile`: the `RUN /setup/section3.sh` line, which installs the supervisor the entrypoint then runs. `setup/dind.sh` declares dockerd as a service in `~/.config/section3/conf.d/`, and section3 reads it on start. Without section3, start it yourself: `XDG_RUNTIME_DIR=/run/user/$(id -u) dockerd-rootless.sh`
-
-Then `dev build` and `dev start`.
-
-**To check it worked:**
-
-```
-docker info | grep -i 'storage driver'   # overlay2, never vfs
-docker run --rm hello-world
-```
-
-**What it costs.** A wider kernel attack surface: user namespaces plus `mount` reach code paths with a history of local privilege escalation bugs, CVE-2022-0185 and CVE-2023-0386 among them.
-It grants no new authority over the host.
-The block is needed because Docker's default seccomp profile blocks `clone(CLONE_NEWUSER)` without `CAP_SYS_ADMIN`.
-A narrower custom profile instead of `unconfined` is possible, but it still has to allow `mount`, `unshare`, `setns`, `pivot_root` and the new mount API, so it buys less than it looks like it should.
-Sub-containers can be handed anything the dev container can see, so keep the paths you mount into them narrow.
+The only lever is `--security-opt systempaths=unconfined`, which unmasks
+`/proc` and makes host-global sysctls writable. `kernel.core_pattern` there is
+executed by the host kernel as real root, so that flag is host root by another
+name and this repository does not offer it. Use the microVM below instead.
 
 ## Booting as a NixOS microVM (flake.nix)
 
-On a NixOS host this is the shorter path. `microvm.nix` supplies the guest
-kernel, the initrd, the virtiofs shares and the networking, all of which
-`bin/devvm` does by hand -- and both bugs found in that script so far were in
-exactly those parts.
-
-    nix run .#unit          # boot it in the foreground
-    signalshell invite tachikoma    # from inside, for remote access
-    ssh -p 2222 node@127.0.0.1      # only if setup/user/key.pub exists
-
-`signalshell serve` runs as a systemd unit from boot (`microvm/signalshell.nix`,
-a pinned release binary -- the guest has no checkout and no toolchain). It dials
-out to the relay, so the forwarded port is a convenience, not the way in.
-section3 is not used here: it exists because a container has no init, and this
-guest has systemd.
-
-Its host key lives on a small persistent volume at `/var/lib/signalshell`. That
-is deliberate: in the container the key lives in the image, so every rebuild
-mints a new identity and silently invalidates the connection string saved on the
-other side.
-
-To start it at boot instead of in a foreground shell, the host takes the
-`microvm.nix` host module and declares the guest:
-
-    microvm.vms.unit.flake = "/path/to/projects/unit/dev";
-
-The shared host directory is **not** in the repo -- this one is public. It comes
-from the environment, and the run has to be impure to read it:
+On a NixOS host this is the path that works, and it is the reason the section
+above exists only to say why containers cannot do it. `microvm.nix` supplies the
+guest kernel, the initrd, the shares and the networking. Inside, docker is the
+ordinary rootful daemon: guest root is not host root, so the hypervisor concedes
+nothing that a privileged container or a bound socket would have.
 
     DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
 
-The shares are **9p**, so a foreground boot needs nothing but `kvm` group
-membership. virtiofs is faster but needs a `virtiofsd` per share, and the
-command-line runner's supervisor expects root to start them (`Can't drop
-privilege as nonroot user`) -- only the systemd host module starts them for
-you. So: 9p while iterating, and switch `microvm.shares[].proto` to
-`"virtiofs"` once the VM is declared with `microvm.vms.<name>` on the host.
+`--impure` is required because the shared host directory is **not** in this
+repository, which is public; it comes from the environment instead. The serial
+console autologins as `node`, since it is reachable only from the terminal that
+started the VM.
 
-A gitignored file will not work for this: flakes only see git-tracked files, so
-`microvm/local.nix` is invisible to evaluation unless you track it in a private
-fork, which is the other supported way to set `projectDir`.
+Verified on 2026-09-15: `docker run --rm hello-world`, a compose stack building
+and serving, git over ssh and the forge CLI all work in the guest.
 
-That, `/dev/kvm` access, and docker on the host for `bin/devvm image` are the
-only host-side requirements; nothing here needs root or a host daemon change.
+**Access.** `signalshell serve` runs as a systemd unit from boot
+(`microvm/signalshell.nix`, a pinned release binary, since the guest has no
+checkout and no toolchain). It dials out to a relay, so the forwarded ssh port
+is a convenience rather than the way in, and `ssh -p 2222 node@127.0.0.1` works
+only if `setup/user/key.pub` exists. section3 is not used here: it exists
+because a container has no init, and this guest has systemd.
 
-The guest is NixOS and is **not** a dev environment: it runs docker and sshd,
-and the tooling lives in the work runtime's containers, which bring their own
-image. That is what makes the guest OS a free choice.
+**Persistence.** `/home/node` and `/var/lib/docker` are disks, the root
+filesystem is tmpfs. Everything worth keeping, the signalshell identity in
+`~/.local/state/signalshell`, ssh keys, forge credentials and image layers,
+survives a reboot or a rebuild. Moving that state is what invalidates a saved
+connection string, so leave it where it is.
 
-`microvm/unit.nix` shares `~/projects/unit` at `/workspace` over virtiofs and
-gives docker its own block device, because image layers on a virtiofs share are
-both slow and a way to leak guest uids into a host directory.
+**At boot, rather than in a terminal.** Import `microvm/host.nix` into the
+host's `configuration.nix`, which declares `microvm.vms.unit`. systemd then
+starts the guest and, before it, one `virtiofsd` per share.
 
-It starts on qemu rather than cloud-hypervisor on purpose: user-mode networking
-with port forwarding is best supported there, so the first boot changes one
-thing instead of three. Switching is one word once networking is proven, and
-boot time does not matter for a VM that runs all day.
+**Shares** default to 9p, so a foreground boot needs nothing but `kvm` group
+membership. virtiofs is faster but needs that `virtiofsd` per share, and the
+command-line runner supervises them expecting to be root (`Can't drop privilege
+as nonroot user`). Once the VM is host-managed, switch with:
 
-**Untested.** Written without a NixOS host to evaluate it on. Expect
-`microvm.nix` option names to need checking against the version you get.
+    DEV_SHARE_PROTO=virtiofs
 
-## Booting the image as a VM (bin/devvm)
+## A daemon elsewhere (docker-cli.sh)
 
-`bin/devvm` boots the same image under cloud-hypervisor instead of running it as
-a container. Inside, root is real root and docker is the ordinary rootful
-daemon; the hypervisor is what keeps that away from the host, so it concedes
-nothing a privileged container or a bound host socket would have conceded.
+The container can also hold only the docker client and talk to a daemon that
+lives somewhere else, which is what the microVM above provides. Uncomment `RUN
+/setup/docker-cli.sh` in the `Dockerfile` and set `DOCKER_HOST` in
+`docker-compose.yml`.
 
-    devvm <project> deps     # cloud-hypervisor (pinned + checksummed), virtiofsd, passt, /dev/kvm
-    devvm <project> image    # docker build -> docker export -> ext4 rootfs
-    devvm <project> kernel   # extract a PVH vmlinux from the image's kernel
-    devvm <project> start
-    devvm <project> ssh
-
-**Host permissions: membership of the `kvm` group, and nothing else.** passt
-does the networking in userspace, so no tap device and no CAP_NET_ADMIN;
-`mke2fs -d` builds the rootfs without root; virtiofsd runs unprivileged because
-it only ever shares your own files.
-
-**`/workspace` is virtio-fs**, not a bind mount, and virtio-fs is slower than a
-bind mount on metadata-heavy work -- `git status`, `bun install`, anything
-walking `node_modules`. Keep docker's storage on the VM's own disk, never on the
-share.
-
-**The kernel has to be a PVH entry point.** cloud-hypervisor does not boot the
-compressed bzImage distros ship, so `devvm kernel` extracts a vmlinux and checks
-for the Xen PVH note before you find out the hard way at boot. If your kernel
-lacks it, build one per cloud-hypervisor's `docs/custom_kernel.md`.
-
-**Untested.** Written against the documented interfaces of cloud-hypervisor
-v53.0, virtiofsd and passt, but never booted -- there was no KVM on the machine
-it was written on. Expect the first run to need corrections.
-
-## A daemon in a VM, instead
-
-Rootless DinD does not work on every host. On a 6.18.40 kernel with rootlesskit
-3.1.0 it fails at `newuidmap: write to uid_map failed: Operation not permitted`,
-and that is not a configuration problem: real root can write the same map for
-any namespace created with `unshare`, but not for rootlesskit's own child.
-Capabilities, seccomp, AppArmor, `/etc/subuid` and the setuid helpers were all
-eliminated by measurement.
-
-The alternative that keeps the isolation intent is a VM on the host running a
-normal rootful daemon, with the container holding only the client. Guest root is
-not host root, so it concedes nothing the socket bind would have.
-
-**To enable**, uncomment `RUN /setup/docker-cli.sh` in the `Dockerfile` and set
-`DOCKER_HOST` in `docker-compose.yml`. The `security_opt` block stays commented:
-without a local daemon nothing here creates a user namespace.
-
-The daemon's TCP port grants root *in the VM* to whoever reaches it, so bind it
-to an interface only the host and its containers can see.
-
-**File ownership.** The rootless daemon maps container uid 0 to `node` and everything above it into the subuid range, so a container running as uid 1000 writes files that arrive as 100999 outside.
-Run containers as root to keep bind-mounted files owned by `node`.
-For Sail that means `sail artisan sail:publish`, then changing `user=sail` to `user=root` in `supervisord.conf`.
-Setting `WWWUSER=0` does not work, because the entrypoint's `usermod` refuses a duplicate uid.
+Whoever reaches that daemon has root in the VM, so bind it to an interface only
+the host and its containers can see.
 
 ## License
 
