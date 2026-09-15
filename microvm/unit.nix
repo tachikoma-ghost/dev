@@ -1,13 +1,16 @@
 # A docker host, not a dev environment. The tooling lives in the work runtime's
 # own containers; this guest exists to run their daemon and to be reached over
-# ssh. See README.md for why a VM at all.
+# signalshell. See README.md for why a VM at all.
 { config, lib, pkgs, ... }:
 
 let
-  # The host directory shared into the guest. Adjust to your own home.
-  projectDir = "/home/martin/projects/unit";
+  # The host directory shared into the guest.
+  projectDir = "/home/ma/projects/unit";
+  sshKey = ../setup/user/key.pub;
 in
 {
+  imports = [ ./signalshell.nix ];
+
   microvm = {
     # qemu first, deliberately: its user-mode networking and port forwarding are
     # the best-supported combination, so the first boot changes one thing rather
@@ -36,11 +39,20 @@ in
 
     # Docker's layers go on a real block device. On the virtiofs share they
     # would be slow and would leak the guest's uids into the host directory.
-    volumes = [{
-      image = "docker.img";
-      mountPoint = "/var/lib/docker";
-      size = 20480;
-    }];
+    volumes = [
+      {
+        image = "docker.img";
+        mountPoint = "/var/lib/docker";
+        size = 20480;
+      }
+      # signalshell's host key lives here. Without a volume it would be minted
+      # afresh on every rebuild, invalidating the saved connection string.
+      {
+        image = "state.img";
+        mountPoint = "/var/lib/signalshell";
+        size = 64;
+      }
+    ];
 
     interfaces = [{
       type = "user";
@@ -61,7 +73,9 @@ in
     isNormalUser = true;
     extraGroups = [ "docker" "wheel" ];
     # Same key the container image uses, so one file stays the source of truth.
-    openssh.authorizedKeys.keyFiles = [ ../setup/user/key.pub ];
+    # Optional: there is no key in the repo, and a missing path would be an
+    # evaluation error rather than a guest you simply reach over signalshell.
+    openssh.authorizedKeys.keyFiles = lib.optionals (builtins.pathExists sshKey) [ sshKey ];
   };
   security.sudo.wheelNeedsPassword = false;
 
