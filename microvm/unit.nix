@@ -28,7 +28,7 @@ let
   sshKey = ../setup/user/key.pub;
 in
 {
-  imports = [ ./signalshell.nix ];
+  imports = [ ./signalshell.nix ./portal.nix ];
 
   microvm = {
     # qemu first, deliberately: its user-mode networking and port forwarding are
