@@ -139,12 +139,11 @@ guest kernel, the initrd, the shares and the networking. Inside, docker is the
 ordinary rootful daemon: guest root is not host root, so the hypervisor concedes
 nothing that a privileged container or a bound socket would have.
 
-    DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
+    nix run .#unit
 
-`--impure` is required because the shared host directory is **not** in this
-repository, which is public; it comes from the environment instead. The serial
-console autologins as `node`, since it is reachable only from the terminal that
-started the VM.
+The serial console autologins as `node`, since it is reachable only from the
+terminal that started the VM. (The old `DEV_PROJECT_DIR="$PWD/.." nix run
+--impure` form went with the workspace share -- see **The working tree** below.)
 
 Verified on 2026-09-15: `docker run --rm hello-world`, a compose stack building
 and serving, git over ssh and the forge CLI all work in the guest.
@@ -156,8 +155,8 @@ is a convenience rather than the way in, and `ssh -p 2222 node@127.0.0.1` works
 only if `setup/user/key.pub` exists. section3 is not used here: it exists
 because a container has no init, and this guest has systemd.
 
-**Persistence.** `/home/node` and `/var/lib/docker` are disks, the root
-filesystem is tmpfs. Everything worth keeping, the signalshell identity in
+**Persistence.** `/home/node`, `/var/lib/docker` and `/workspace` are disks, the
+root filesystem is tmpfs. Everything worth keeping, the signalshell identity in
 `~/.local/state/signalshell`, ssh keys, forge credentials and image layers,
 survives a reboot or a rebuild. Moving that state is what invalidates a saved
 connection string, so leave it where it is.
@@ -166,12 +165,23 @@ connection string, so leave it where it is.
 host's `configuration.nix`, which declares `microvm.vms.unit`. systemd then
 starts the guest and, before it, one `virtiofsd` per share.
 
-**Shares** default to 9p, so a foreground boot needs nothing but `kvm` group
-membership. virtiofs is faster but needs that `virtiofsd` per share, and the
-command-line runner supervises them expecting to be root (`Can't drop privilege
-as nonroot user`). Once the VM is host-managed, switch with:
+**Shares.** Only `/nix/store` is shared now (read-only and mostly cached); the
+working tree is a disk. 9p is the default, so a foreground boot needs nothing
+but `kvm` group membership. virtiofs is faster but needs a `virtiofsd` per
+share, and the command-line runner supervises them expecting to be root (`Can't
+drop privilege as nonroot user`). Once the VM is host-managed, switch with
+`DEV_SHARE_PROTO=virtiofs` -- an environment read, so it needs `--impure`.
 
-    DEV_SHARE_PROTO=virtiofs
+**The working tree** is `workspace.img`, mounted at `/workspace`, and is *not*
+visible to the host. Clone the product repository into `/workspace/product` from
+the forge in the guest.
+
+This is deliberate. As a 9p share of the host's directory it was the VM's entire
+CPU cost: serving the tree spent ~44 CPU-hours in qemu's 9p server over a day
+(578M virtio-9p requests, against ~9k for the virtio-blk `docker.img`), and 9p
+carries no inotify, so Vite polled it every 400 ms. On ext4 the I/O is native
+block traffic and inotify works, so polling can go. The cost is that the host no
+longer sees the tree; edit in the guest, or move code through the forge.
 
 ## A daemon elsewhere (docker-cli.sh)
 

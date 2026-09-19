@@ -4,27 +4,11 @@
 { config, lib, pkgs, ... }:
 
 let
-  # The host directory shared into the guest. Deliberately not in the repo:
-  # this one is public, and the path names somebody's home.
-  #
-  # It comes from the environment, because a flake only sees git-tracked files:
-  # a gitignored microvm/local.nix is invisible to evaluation, which is what
-  # made the first boot attempt fail.
-  #
-  #     DEV_PROJECT_DIR="$PWD/.." nix run --impure .#unit
-  #
-  # microvm/local.nix still works if you track it in a private fork.
-  local = if builtins.pathExists ./local.nix then import ./local.nix else { };
-  envDir = builtins.getEnv "DEV_PROJECT_DIR";
-
-  # 9p by default so a foreground `nix run` needs no root; virtiofs once the VM
-  # is host-managed and systemd starts virtiofsd for it. See microvm/host.nix.
+  # The only share left is the read-only Nix store. 9p by default so a
+  # foreground `nix run` needs no root; virtiofs once the VM is host-managed and
+  # systemd starts virtiofsd for it. See microvm/host.nix.
   envProto = builtins.getEnv "DEV_SHARE_PROTO";
   shareProto = if envProto != "" then envProto else "9p";
-  projectDir = local.projectDir or (
-    if envDir != "" then envDir
-    else throw ("microvm: set DEV_PROJECT_DIR and run with --impure, e.g. "
-      + "DEV_PROJECT_DIR=\"$PWD/..\" nix run --impure .#unit -- see README.md"));
   sshKey = ../setup/user/key.pub;
 in
 {
@@ -45,22 +29,17 @@ in
     # root, while qemu implements 9p itself.
     shares = [
       # A NixOS guest runs from the host's store; without this it has no system.
+      # It is read-only and mostly cached, so keeping it on 9p is cheap.
       {
         tag = "ro-store";
         source = "/nix/store";
         mountPoint = "/nix/.ro-store";
         proto = shareProto;
       }
-      {
-        tag = "workspace";
-        source = projectDir;
-        mountPoint = "/workspace";
-        proto = shareProto;
-      }
     ];
 
-    # Docker's layers go on a real block device. On the virtiofs share they
-    # would be slow and would leak the guest's uids into the host directory.
+    # Docker's layers, the home directory and the working tree all go on real
+    # block devices, never a share.
     volumes = [
       {
         image = "docker.img";
@@ -74,6 +53,19 @@ in
         image = "home.img";
         mountPoint = "/home/node";
         size = 2048;
+      }
+      # The working tree. It was a 9p share of the host's directory until
+      # 2026-09-19, when that share turned out to be the VM's entire CPU cost:
+      # serving it spent ~44 CPU-hours in qemu's 9p server over a day (578M
+      # virtio-9p requests, against ~9k for the virtio-blk docker.img), and 9p
+      # carries no inotify, so Vite had to poll it. On a disk it is native block
+      # I/O and inotify works. The tree is no longer visible to the host; clone
+      # the product repository into /workspace/product from the forge in the
+      # guest.
+      {
+        image = "workspace.img";
+        mountPoint = "/workspace";
+        size = 20480;
       }
     ];
 
@@ -129,6 +121,10 @@ in
     "d /home/node 0700 node users -"
     "d /home/node/.local 0755 node users -"
     "Z /home/node/.local - node users -"
+    # The workspace volume mounts root-owned; hand it to node so the checkout
+    # (and the containers, which run as 1000:100) can write it. This runs after
+    # local-fs.target, so it is the mounted ext4 root, not the tmpfs under it.
+    "d /workspace 0755 node users -"
   ];
 
   networking.hostName = "unit-vm";
