@@ -88,6 +88,21 @@ in
   # serving a compose stack on this daemon.
   environment.systemPackages = with pkgs; [ bun git openssh tea curl ];
 
+  # Prebuilt foreign binaries. A project's tooling can arrive as single-file
+  # compiled executables -- bun's compiler emits one -- and those link against
+  # a generic glibc with libstdc++, which this guest cannot run: the store
+  # layout has no /lib64 loader path and no system-wide library dir. nix-ld
+  # provides the conventional interpreter path, forwarding to the store loader
+  # with NIX_LD_LIBRARY_PATH built from this list, so such a binary runs
+  # as-is instead of needing a container or a patchelf pass.
+  programs.nix-ld = {
+    enable = true;
+    libraries = with pkgs; [
+      stdenv.cc.cc # libstdc++ and the gcc runtime
+      libgcc # libgcc_s
+    ];
+  };
+
   users.users.node = {
     isNormalUser = true;
     extraGroups = [ "docker" "wheel" ];
