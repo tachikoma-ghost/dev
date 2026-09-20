@@ -173,15 +173,15 @@ drop privilege as nonroot user`). Once the VM is host-managed, switch with
 `DEV_SHARE_PROTO=virtiofs` -- an environment read, so it needs `--impure`.
 
 **The working tree** is `workspace.img`, mounted at `/workspace`, and is *not*
-visible to the host. Clone the product repository into `/workspace/product` from
-the forge in the guest.
+visible to the host. Clone your project into `/workspace` in the guest.
 
 This is deliberate. As a 9p share of the host's directory it was the VM's entire
 CPU cost: serving the tree spent ~44 CPU-hours in qemu's 9p server over a day
 (578M virtio-9p requests, against ~9k for the virtio-blk `docker.img`), and 9p
-carries no inotify, so Vite polled it every 400 ms. On ext4 the I/O is native
-block traffic and inotify works, so polling can go. The cost is that the host no
-longer sees the tree; edit in the guest, or move code through the forge.
+carries no inotify, so a file-watching dev server had to poll it every 400 ms.
+On ext4 the I/O is native block traffic and inotify works, so polling can go.
+The cost is that the host no longer sees the tree; edit in the guest, or move
+code through git.
 
 ## A daemon elsewhere (docker-cli.sh)
 

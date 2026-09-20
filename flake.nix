@@ -1,5 +1,5 @@
 {
-  description = "The dev environment as a microVM: a docker host for the work runtime";
+  description = "The dev environment as a microVM: a docker host for a project's containers";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

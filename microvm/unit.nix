@@ -1,5 +1,5 @@
-# A docker host, not a dev environment. The tooling lives in the work runtime's
-# own containers; this guest exists to run their daemon and to be reached over
+# A docker host, not a dev environment. The tooling lives in a project's own
+# containers; this guest exists to run their daemon and to be reached over
 # signalshell. See README.md for why a VM at all.
 { config, lib, pkgs, ... }:
 
@@ -58,10 +58,9 @@ in
       # 2026-09-19, when that share turned out to be the VM's entire CPU cost:
       # serving it spent ~44 CPU-hours in qemu's 9p server over a day (578M
       # virtio-9p requests, against ~9k for the virtio-blk docker.img), and 9p
-      # carries no inotify, so Vite had to poll it. On a disk it is native block
-      # I/O and inotify works. The tree is no longer visible to the host; clone
-      # the product repository into /workspace/product from the forge in the
-      # guest.
+      # carries no inotify, so a file-watching dev server had to poll it. On a
+      # disk it is native block I/O and inotify works. The tree is no longer
+      # visible to the host; clone your project into /workspace in the guest.
       {
         image = "workspace.img";
         mountPoint = "/workspace";
@@ -84,10 +83,9 @@ in
 
   virtualisation.docker.enable = true;
 
-  # The work runtime drives the daemon from here: its dispatcher is TypeScript
-  # (bun), it clones over ssh (git, openssh), and it resolves issue branches
-  # from the forge (tea). Verified against the demo stack, which builds and
-  # serves on this daemon.
+  # The dev tooling drives the daemon from here: a TypeScript CLI (bun), git
+  # over ssh (git, openssh), and the forge's CLI (tea). Verified by building and
+  # serving a compose stack on this daemon.
   environment.systemPackages = with pkgs; [ bun git openssh tea curl ];
 
   users.users.node = {

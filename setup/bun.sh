@@ -2,10 +2,9 @@
 
 set -eu -o pipefail
 
-# bun runs the work-runtime CLI: `bin/work` is a self-contained TypeScript
-# script on bun, and its sessions dispatch *.mts through bun too. Nothing else
-# here needs it — the harnesses and the product's stack live in the pinned
-# runtime image and in the containers the runtime starts, not in this one.
+# bun runs a project's TypeScript CLI and the *.mts sessions it dispatches.
+# Nothing else here needs it — the tooling and the project's stack live in the
+# pinned runtime image and in the containers it starts, not in this one.
 curl -fsSL https://bun.sh/install | bash
 
 # The installer appends BUN_INSTALL and the PATH line to ~/.bashrc itself.

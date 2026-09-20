@@ -1,8 +1,8 @@
-# A headless browser in the VM, for looking at what the manager actually
-# renders rather than at what its dev server returns.
+# A headless browser in the VM, for looking at what an app actually renders
+# rather than at what its dev server returns.
 #
-# Here rather than in the manager's docker image because the browser is a tool
-# for inspecting the app, not a part of it: a dev image carrying browser
+# Here rather than in the app's docker image because the browser is a tool for
+# inspecting it, not a part of it: a dev image carrying browser
 # libraries makes every developer pull them for something only an agent uses,
 # and the libraries then live in the container's writable layer, which is
 # exactly where they were lost every time the stack was recreated.
