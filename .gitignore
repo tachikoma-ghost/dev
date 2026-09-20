@@ -1,4 +1,5 @@
 /cache/
 /container
+/nvim/
 setup/user/key.pub
 microvm/local.nix
