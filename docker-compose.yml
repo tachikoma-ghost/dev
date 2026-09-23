@@ -44,16 +44,6 @@ services:
     #  - seccomp=unconfined
     #  - apparmor=unconfined
     command: /bin/bash -c "echo ready; sleep infinity"
-  ollama:
-    image: ollama/ollama
-    volumes:
-      - type: bind
-        source: ../ollama
-        target: /root/.ollama
-    deploy:
-      resources:
-        limits:
-          cpus: "1.5"
   expo-builder:
     #image: reactnativecommunity/react-native-android:latest
     build:
