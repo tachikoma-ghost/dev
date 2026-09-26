@@ -27,7 +27,5 @@ RUN /setup/agent.sh
 #RUN /setup/rust.sh
 #RUN /setup/section3.sh
 #RUN /setup/signalshell.sh
-#RUN /setup/dind.sh  # requires section3 to start the daemon automatically. See README.md
-#RUN /setup/docker-cli.sh  # client only, for a daemon in a VM. See README.md
 
 ENTRYPOINT ["/setup/entrypoint.sh"]

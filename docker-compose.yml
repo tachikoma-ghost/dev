@@ -23,8 +23,4 @@ services:
         source: ./cache/nvim
         target: /home/node/.local/share/nvim
         read_only: false
-    # Required for rootless Docker-in-Docker; see README.md.
-    #security_opt:
-    #  - seccomp=unconfined
-    #  - apparmor=unconfined
     command: /bin/bash -c "echo ready; sleep infinity"
