@@ -21,7 +21,6 @@ RUN /setup/agent.sh
 #RUN /setup/rust.sh
 RUN /setup/tmux.sh
 RUN /setup/terminfo.sh
-COPY herdr /opt/herdr
 RUN /setup/herdr.sh
 RUN /setup/section3.sh
 RUN /setup/signalshell.sh
