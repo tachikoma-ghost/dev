@@ -20,7 +20,6 @@ RUN /setup/updates.sh
 RUN USER=node /setup/sshd.sh
 RUN /setup/tmux.sh
 RUN /setup/terminfo.sh
-COPY herdr /opt/herdr
 RUN /setup/herdr.sh
 RUN /setup/bash.sh
 RUN /setup/nvim.sh

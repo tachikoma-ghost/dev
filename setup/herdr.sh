@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Install herdr and link the repo's config into place.
+# Install herdr and put the repo's config in place.
 #
 # Runs at image build (Dockerfile) and by hand on an existing container. It
-# must not assume the herdr config is present: when none of the candidate
-# paths exists, the binary install still happens and herdr runs on its own
-# defaults.
+# must not assume the herdr config is present: when setup/user has none, the
+# binary install still happens and herdr runs on its own defaults.
 set -eu -o pipefail
 
 if command -v herdr >/dev/null 2>&1; then
@@ -22,33 +21,19 @@ else
     echo "installed herdr $(herdr --version | awk '{print $2}')"
 fi
 
-# First existing config wins: /workspace/dev is the dev checkout every
-# container binds, clients/dev is the writable checkout inside the persistent
-# workspace, /opt/herdr is the copy baked in at image build. A missing config
-# is not an error; an unmanaged real file is, because linking over it would
-# silently discard whatever the operator put there.
-config=""
-for candidate in /workspace/dev/herdr/config.toml \
-                 /workspace/clients/dev/herdr/config.toml \
-                 /opt/herdr/config.toml; do
-    if [ -f "$candidate" ]; then
-        config="$candidate"
-        break
+# setup/user/herdr.toml is the repo's copy; herdr expects the file at
+# ~/.config/herdr/config.toml. Copy rather than link, like gitconfig: herdr's
+# own config tooling rewrites the file, which should not reach into whatever
+# checkout the link points at. The repo copy is the source of truth, so a
+# differing live file is overwritten loudly — rebuild wins, and an edit made
+# only in the container has to be carried back into the repo by hand.
+if [ -f /setup/user/herdr.toml ]; then
+    mkdir -p "$HOME/.config/herdr"
+    if [ -f "$HOME/.config/herdr/config.toml" ] && ! cmp -s /setup/user/herdr.toml "$HOME/.config/herdr/config.toml"; then
+        echo "overwriting $HOME/.config/herdr/config.toml with the repo copy (differences exist)"
     fi
-done
-
-if [ -z "$config" ]; then
-    echo "no herdr config found in any checkout; leaving herdr on its defaults"
-    exit 0
+    cp /setup/user/herdr.toml "$HOME/.config/herdr/config.toml"
+    echo "installed $HOME/.config/herdr/config.toml from setup/user"
+else
+    echo "no herdr config in setup/user; leaving herdr on its defaults"
 fi
-
-mkdir -p "$HOME/.config/herdr"
-target="$HOME/.config/herdr/config.toml"
-
-if [ -e "$target" ] && [ ! -L "$target" ]; then
-    echo "refusing: $target exists and is not a symlink; resolve it by hand" >&2
-    exit 1
-fi
-
-ln -sfn "$config" "$target"
-echo "linked $target -> $config"
