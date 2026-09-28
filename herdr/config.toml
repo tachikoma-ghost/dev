@@ -1,0 +1,39 @@
+# herdr configuration
+# Keybindings follow Martin's tmux muscle memory (leader = ctrl+b).
+# Naming map: tmux session ≈ herdr workspace, tmux window ≈ herdr tab.
+# Full default config: herdr --default-config
+
+onboarding = false
+
+[ui]
+# tmux windows open instantly; skip the tab-name prompt
+prompt_new_tab_name = false
+
+[keys]
+prefix = "ctrl+b"
+
+# tmux leader+c → tmux new-window ≈ herdr new tab (also the herdr default, pinned here)
+new_tab = "prefix+c"
+
+# tmux leader+n / leader+p → next/previous window ≈ herdr next/previous tab
+# (also the herdr defaults, pinned here)
+next_tab = "prefix+n"
+previous_tab = "prefix+p"
+
+# tmux leader+s (session picker) → herdr workspace picker
+# NOTE: this displaces herdr's default settings key (prefix+s);
+# settings are still reachable via prefix+? help
+workspace_picker = "prefix+s"
+
+# tmux leader+% (side-by-side split) → herdr split_vertical (left/right split)
+split_vertical = "prefix+%"
+
+# tmux leader+" (top/bottom split) → herdr split_horizontal
+split_horizontal = 'prefix+"'
+
+# tmux leader+d (detach) displaces herdr's default q
+detach = "prefix+d"
+
+# kept from herdr defaults: leader+x closes a pane, leader+z zooms,
+# leader+r resize mode, leader+h/j/k/l focus panes, leader+1..9 switch tabs,
+# leader+[ copy mode (tmux-style), leader+[?] help
