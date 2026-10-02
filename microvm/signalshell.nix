@@ -6,7 +6,7 @@
 { lib, pkgs, ... }:
 
 let
-  version = "393";
+  version = "401";
 
   signalshell = pkgs.stdenvNoCC.mkDerivation {
     pname = "signalshell";
@@ -15,7 +15,7 @@ let
     # CGO_ENABLED=0, so the release binary is static: no patchelf, no libc.
     src = pkgs.fetchurl {
       url = "https://signalshell.com/releases/${version}/signalshell-linux-amd64";
-      hash = "sha256-5mHYWQZwHhj7h58TXNoxC6HNk9zF7ykvbNSPT1WB59M=";
+      hash = "sha256-9wuj9sAiW+tSfOMAEwLPj5gnfGqrUa3XgNGBpSjXmWY=";
     };
 
     dontUnpack = true;
