@@ -88,6 +88,12 @@ in
   # serving a compose stack on this daemon.
   environment.systemPackages = with pkgs; [ bun git openssh tea curl ];
 
+  # A project that loads its environment from an .envrc gets it in an
+  # interactive shell, as on a workstation (`direnv allow` once per checkout).
+  # The hook does not fire in a non-interactive shell; a script there runs
+  # `direnv exec <dir> <command>`.
+  programs.direnv.enable = true;
+
   # Prebuilt foreign binaries. A project's tooling can arrive as single-file
   # compiled executables -- bun's compiler emits one -- and those link against
   # a generic glibc with libstdc++, which this guest cannot run: the store
