@@ -23,6 +23,20 @@ subcommands=("help" "list" "check" "build" "run" "start" "stop" "console" "init"
 STATE_DIR="$HOME/.local/state/devvm"
 mkdir -p "$STATE_DIR"
 
+## Ask a yes/no question (as in bin/dev)
+ask() {
+	while true; do
+		echo -n "$@ [Y,n] "
+		read yn
+		case "$yn" in
+			[Yy]* ) return 0;;
+			""    ) return 0;;
+			[Nn]* ) return 1;;
+			* ) echo "Please answer yes or no.";;
+		esac
+	done
+}
+
 # Guest disk images live in one central folder per usage (Martin's idea: the
 # images are opaque, unlike containers' bind mounts, so no per-project
 # scatter). guest.nix reads this environment variable; nix evaluation then
