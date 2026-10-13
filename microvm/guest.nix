@@ -1,6 +1,12 @@
-# A docker host, not a dev environment. The tooling lives in a project's own
-# containers; this guest exists to run their daemon and to be reached over
-# signalshell. See README.md for why a VM at all.
+# The generic microVM guest: a docker host, not a dev environment. The
+# tooling lives in a project's own containers; the guest exists to run their
+# daemon (imported per instance) and to be reached over signalshell.
+#
+# Every VM the flake declares instantiates this module; adding an instance is
+# one entry in flake.nix's `vms` list, no new file. Values that must be unique
+# per VM and deterministic across rebuilds -- hostName, MAC, ssh forward port --
+# are either passed explicitly or derived from the VM *name* by hash, so a
+# rebuild can never accidentally shadow another VM's identity.
 { config, lib, pkgs, ... }:
 
 let
@@ -10,9 +16,37 @@ let
   envProto = builtins.getEnv "DEV_SHARE_PROTO";
   shareProto = if envProto != "" then envProto else "9p";
   sshKey = ../setup/user/key.pub;
+
+  # Default tooling (as unit.nix shipped it): a TypeScript CLI driver (bun),
+  # git over ssh, the forge CLI (tea). Instances override `packages` freely.
+  defaultPackages = pkgs: with pkgs; [ bun git openssh tea curl ];
 in
 {
-  imports = [ ./signalshell.nix ./portal.nix ./playwright.nix ];
+  # The VM's identity under the flake and on the host (microvm.vms.<name>,
+  # /var/lib/microvms/<name>). Also seeds the derived values below.
+  name,
+  # Guest hostname.
+  hostName ? "vm-" + name,
+  # Locally administered MAC. Derived deterministically from the name when
+  # omitted: prefix 02:00:00 (unregistered, safe for qemu user networking)
+  # plus the first three bytes of a sha256 of the name.
+  mac ? null,
+  # Host-side ssh forward for rescue access; none when null.
+  sshHostPort ? null,
+  vcpu ? 4,
+  mem ? 8192,
+  dockerSize ? 20480,
+  homeSize ? 2048,
+  workspaceSize ? 20480,
+  # Extra modules, e.g. ./microvm/signalshell.nix; signalshell stays the rule
+  # (access), portal/playwright are per-instance choices.
+  imports ? [],
+  packages ? defaultPackages,
+  stateVersion ? "25.05",
+}:
+
+{
+  imports = imports;
 
   microvm = {
     # qemu first, deliberately: its user-mode networking and port forwarding are
@@ -21,8 +55,7 @@ in
     # proven -- boot time is irrelevant for one long-lived VM.
     hypervisor = "qemu";
 
-    vcpu = 4;
-    mem = 8192;
+    inherit vcpu mem;
 
     # Protocol from DEV_SHARE_PROTO, 9p by default: virtiofs needs a virtiofsd
     # per share, and the command-line runner supervises them expecting to be
@@ -39,12 +72,13 @@ in
     ];
 
     # Docker's layers, the home directory and the working tree all go on real
-    # block devices, never a share.
+    # block devices, never a share. Image names are per-VM state dirs, so they
+    # can stay generic across instances.
     volumes = [
       {
         image = "docker.img";
         mountPoint = "/var/lib/docker";
-        size = 20480;
+        size = dockerSize;
       }
       # The root filesystem is tmpfs, so without this the ssh key for the forge,
       # tea's credentials and signalshell's host key would all have to be
@@ -52,7 +86,7 @@ in
       {
         image = "home.img";
         mountPoint = "/home/node";
-        size = 2048;
+        size = homeSize;
       }
       # The working tree. It was a 9p share of the host's directory until
       # 2026-09-19, when that share turned out to be the VM's entire CPU cost:
@@ -64,29 +98,32 @@ in
       {
         image = "workspace.img";
         mountPoint = "/workspace";
-        size = 20480;
+        size = workspaceSize;
       }
     ];
 
     interfaces = [{
       type = "user";
-      id = "vm-unit";
-      mac = "02:00:00:01:01:01";
+      id = "vm-" + name;
+      mac = if mac != null
+        then mac
+        else "02:00:00:"
+          + builtins.substring 0 2 (builtins.hashString "sha256" name) + ":"
+          + builtins.substring 2 2 (builtins.hashString "sha256" name) + ":"
+          + builtins.substring 4 2 (builtins.hashString "sha256" name);
     }];
 
-    forwardPorts = [{
+    forwardPorts = lib.optionals (sshHostPort != null) [{
       from = "host";
-      host.port = 2222;
+      host.port = sshHostPort;
       guest.port = 22;
     }];
   };
 
   virtualisation.docker.enable = true;
 
-  # The dev tooling drives the daemon from here: a TypeScript CLI (bun), git
-  # over ssh (git, openssh), and the forge's CLI (tea). Verified by building and
-  # serving a compose stack on this daemon.
-  environment.systemPackages = with pkgs; [ bun git openssh tea curl ];
+  # Verified by building and serving a compose stack on this daemon.
+  environment.systemPackages = packages pkgs;
 
   # A project that loads its environment from an .envrc gets it in an
   # interactive shell, as on a workstation (`direnv allow` once per checkout).
@@ -146,6 +183,6 @@ in
     "d /workspace 0755 node users -"
   ];
 
-  networking.hostName = "unit-vm";
-  system.stateVersion = "25.05";
+  networking.hostName = hostName;
+  system.stateVersion = stateVersion;
 }
