@@ -145,6 +145,30 @@ The serial console autologins as `node`, since it is reachable only from the
 terminal that started the VM. (The old `DEV_PROJECT_DIR="$PWD/.." nix run
 --impure` form went with the workspace share -- see **The working tree** below.)
 
+**Declaring VMs.** Every VM is one entry in the `vms` list in `flake.nix`;
+`microvm/guest.nix` is the shared body, `microvm/unit.nix` is gone. An entry
+names the instance and overrides only what differs -- sizes, packages, extra
+`imports`. Everything identifying is derived from the `name`: the guest
+hostname defaults to `vm-<name>`, the MAC to a hash of it, so adding an
+instance cannot shadow an existing VM. `microvm/signalshell.nix` provides the
+access path; portal and playwright ride only with the instances using them.
+
+**The `vm` command.** `bin/vm` is to these VMs what `bin/dev` is to the
+containers -- same argument shape, subcommand last:
+
+| container (`bin/dev`) | VM (`bin/vm`) |
+|---|---|
+| entry in `docker-compose.yml` | entry in `flake.nix` `vms` |
+| `Dockerfile`, `setup/*.sh` | `microvm/guest.nix` + per-entry `imports` |
+| `dev build`, `dev start` | `vm build`, `vm run` (or `vm start` in tmux) |
+| `dev bash` | `vm console <name>` (attach) |
+| `dev upgrade` (= `git pull`) | `vm upgrade` (= `git pull`) |
+
+`vm build <name>` builds the runner, `vm run <name>` boots it in the
+foreground, `vm start`/`stop`/`console` drive a tmux session, `vm list` prints
+the names the flake declares. It needs `nix` and this checkout on the `devvm`
+branch.
+
 Verified on 2026-09-15: `docker run --rm hello-world`, a compose stack building
 and serving, git over ssh and the forge CLI all work in the guest.
 

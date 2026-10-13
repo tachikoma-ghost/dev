@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# bin/vm: the bin/dev equivalent for microVMs. Same shape, same ergonomics:
+# one command, a subcommand, a name. What bin/dev is to docker-compose, this
+# is to flake.nix's `vms` list and microvm/guest.nix.
+#
+#   docker (bin/dev)            microVM (bin/vm)
+#   --------------------------  ---------------------------------
+#   entry in docker-compose.yml entry in flake.nix `vms` list
+#   Dockerfile + setup/*.sh     microvm/guest.nix (+ imports)
+#   dev  build / start          vm  build / run (or start)
+#   dev  bash                   vm  console
+#
+# Requires nix and a checkout with the flake (the `devvm` branch). Names map
+# 1:1 to the `vms` list in flake.nix; guests' hostnames and MACs are derived
+# from the name there, so nothing per-instance lives in this script.
+
+set -eu -o pipefail
+
+## list of subcommands
+subcommands=("help" "list" "check" "build" "run" "start" "stop" "console" "upgrade" "h" "l" "c" "b" "r")
+
+## state directory for persistent data
+STATE_DIR="$HOME/.local/state/vm"
+mkdir -p "$STATE_DIR"
+
+name=""
+command=""
+
+is_subcommand() {
+	[[ " ${subcommands[@]} " =~ " $1 " ]]
+}
+
+# First argument: a VM name, or a subcommand. Ambiguity resolved against the
+# subcommand list, since a VM name never collides with them.
+if [[ $# -gt 0 ]] && ! is_subcommand "$1"
+then
+	name="$1"
+	shift
+fi
+
+# No name given: use the last one, like bin/dev restores the last project.
+if [[ -z "$name" && "$command" != "help" && $# -gt 0 ]] && ! is_subcommand "$1"
+then :; fi
+if [[ -z "$name" ]] && [[ $# -gt 0 ]] && ! is_subcommand "$1"
+then
+	name="$1"
+	shift
+fi
+if [[ $# -gt 0 ]]
+then
+	if is_subcommand "$1"
+	then
+		command="$1"
+		shift
+	else
+		echo "Invalid command: $1"
+		exit 2
+	fi
+fi
+
+if [[ -z "$name" && ! "$command" =~ ^(help|list|upgrade|"" )$ ]]
+then
+	if [[ -f "$STATE_DIR/last.vm" ]]; then
+		name=$(cat "$STATE_DIR/last.vm")
+	else
+		echo "No VM name given and none remembered; see  vm help"
+		exit 1
+	fi
+fi
+
+# The flake lives in the repo this checkout is on. Run from anywhere inside it.
+repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo" || ! -f "$repo/flake.nix" ]]
+then
+	echo "No flake.nix found: run inside the dev checkout with the devvm branch"
+	exit 5
+fi
+
+if [[ -n "$name" && ! "$name" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]
+then
+	echo "Invalid VM name '$name'. Lowercase letters, numbers and inner hyphens only."
+	exit 7
+fi
+
+help() {
+	echo "Usage: vm [name] <command>"
+	echo ""
+	echo "  <name>: one of the VMs in flake.nix's \`vms\` list (see  vm list)."
+	echo "          If omitted, the last used VM is reused."
+	echo ""
+	echo "<command>:"
+	echo "  help (h): show this help"
+	echo "  list (l): show the declared VMs"
+	echo "  check: cheap sanity: evaluates a VM's derived config (hostname)"
+	echo "  build (b): build a VM's runner            = nix build .#<name>"
+	echo "  run (r): boot a VM in the foreground      = nix run .#<name>"
+	echo "  start: boot detached, in a tmux session vm-<name>"
+	echo "  stop: stop a detached VM (kills its tmux session)"
+	echo "  console (c): attach to a detached VM's console"
+	echo "  upgrade: git pull this checkout (the flake is the VM's compose file)"
+	echo ""
+	echo "A host-managed VM (microvm.vms.<name> in host.nix) is driven by systemd:"
+	echo "  systemctl start/stop microvm@<name>, journalctl -u microvm@<name>"
+}
+
+case "$command" in
+	"h"|"help")
+		help
+		;;
+	"list"|"l")
+		nix eval --json ".#nixosConfigurations" --apply 'builtins.attrNames' | tr -d '[]"' | tr ',' ' '
+		;;
+	"check")
+		nix eval --raw ".#nixosConfigurations.$name.config.networking.hostName"
+		echo ""
+		;;
+	"build"|"b")
+		nix build ".#$name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"run"|"r")
+		# Foreground: the serial console autologins as node and is visible only
+		# in this terminal. Leave with C-a x (qemu's escape).
+		nix run ".#$name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"start")
+		if ! command -v tmux >/dev/null; then
+			echo "start needs tmux; use  vm run  for the foreground instead"
+			exit 6
+		fi
+		tmux new-session -d -s "vm-$name" "cd '$repo' && nix run '.#$name'"
+		echo "booting in tmux session vm-$name; attach with  vm console $name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"stop")
+		tmux kill-session -t "vm-$name"
+		;;
+	"console"|"c")
+		# Two attaches would fight over the same tty; reuse a session if open.
+		tmux attach -t "vm-$name" 2>/dev/null || tmux attach -t "vm-$name"
+		;;
+	"upgrade")
+		git -C "$repo" pull
+		;;
+	"")
+		# default like bin/dev's bash: no command given with a name = console
+		if command -v tmux >/dev/null && tmux has-session -t "vm-$name" 2>/dev/null; then
+			tmux attach -t "vm-$name"
+		else
+			nix run ".#$name"
+			echo "$name" > "$STATE_DIR/last.vm"
+		fi
+		;;
+	*)
+		echo "Invalid command: $command"
+		exit 4
+		;;
+esac
