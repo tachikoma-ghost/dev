@@ -145,29 +145,41 @@ The serial console autologins as `node`, since it is reachable only from the
 terminal that started the VM. (The old `DEV_PROJECT_DIR="$PWD/.." nix run
 --impure` form went with the workspace share -- see **The working tree** below.)
 
-**Declaring VMs.** Every VM is one entry in the `vms` list in `flake.nix`;
-`microvm/guest.nix` is the shared body, `microvm/unit.nix` is gone. An entry
-names the instance and overrides only what differs -- sizes, packages, extra
-`imports`. Everything identifying is derived from the `name`: the guest
-hostname defaults to `vm-<name>`, the MAC to a hash of it, so adding an
-instance cannot shadow an existing VM. `microvm/signalshell.nix` provides the
-access path; portal and playwright ride only with the instances using them.
+**Declaring VMs.** Every VM is one entry in the `vms` list in
+`microvm/vms.nix`; `microvm/guest.nix` is the shared body, `microvm/unit.nix`
+is gone. An entry names the instance and overrides only what differs -- sizes,
+packages, extra `imports`. Everything identifying is derived from the `name`:
+the guest hostname defaults to `vm-<name>`, the MAC to a hash of it, so adding
+an instance cannot shadow an existing VM. `microvm/signalshell.nix` provides
+the access path; portal and playwright ride only with the instances using
+them. `devvm init <name>` scaffolds an entry and, like `dev init`, copies the
+useful host config (`setup/user/`): ssh key, `.gitconfig` -- the guest copies
+them into `/home/node` at first boot (`userFiles` + `setup` in guest.nix), once, marker-gated.
 
-**The `vm` command.** `bin/vm` is to these VMs what `bin/dev` is to the
+**Disk locations.** Nebulous images have no use for per-project folders like
+the containers' bind mounts, so they get one central home:
+`~/projects/devvm/volumes/<name>/<disk>.img` (env `DEVVM_VOLUMES_DIR`, an
+environment read, hence `--impure` on every `nix` call `bin/devvm` makes).
+An entry pinning `volumesDir = null` keeps the microvm module's own layout --
+`unit` does that, so its disks never move and its next boot finds exactly
+its old state.
+
+**The `devvm` command.** `bin/devvm` is to these VMs what `bin/dev` is to the
 containers -- same argument shape, subcommand last:
 
-| container (`bin/dev`) | VM (`bin/vm`) |
+| container (`bin/dev`) | VM (`bin/devvm`) |
 |---|---|
-| entry in `docker-compose.yml` | entry in `flake.nix` `vms` |
+| entry in `docker-compose.yml` | entry in `microvm/vms.nix` |
 | `Dockerfile`, `setup/*.sh` | `microvm/guest.nix` + per-entry `imports` |
-| `dev build`, `dev start` | `vm build`, `vm run` (or `vm start` in tmux) |
-| `dev bash` | `vm console <name>` (attach) |
-| `dev upgrade` (= `git pull`) | `vm upgrade` (= `git pull`) |
+| `dev init` | `devvm init <name>` |
+| `dev build`, `dev start` | `devvm build`, `devvm run` (or `devvm start` in tmux) |
+| `dev bash` | `devvm console <name>` (attach) |
+| `dev upgrade` (= `git pull`) | `devvm upgrade` (= `git pull`) |
 
-`vm build <name>` builds the runner, `vm run <name>` boots it in the
-foreground, `vm start`/`stop`/`console` drive a tmux session, `vm list` prints
-the names the flake declares. It needs `nix` and this checkout on the `devvm`
-branch.
+`devvm build <name>` builds the runner, `devvm run <name>` boots it in the
+foreground, `devvm start`/`stop`/`console` drive a tmux session, `devvm list`
+prints the names the flake declares. It needs `nix` and this checkout on the
+`devvm` branch.
 
 Verified on 2026-09-15: `docker run --rm hello-world`, a compose stack building
 and serving, git over ssh and the forge CLI all work in the guest.

@@ -13,41 +13,9 @@
     let
       system = "x86_64-linux";
 
-      # Every VM is one entry here. guest.nix (microvm/guest.nix) supplies the
-      # body; an entry only names the instance and overrides what differs.
-      # Values left out are derived: hostName, MAC and (future) ports come from
-      # `name` deterministically, so a rebuild never shadows another VM.
-      #
-      # `imports` paths are relative to this flake.nix. What each entry needs:
-      #  - ./microvm/signalshell.nix for signalshell access (the rule, not the
-      #    exception -- a VM nobody can reach cannot be administered).
-      #  - portal/playwright stay with the instance that actually uses them.
-      #
-      # Foreground boot:  nix run .#<name>     (see packages below)
-      # Host-managed:     microvm.vms.<name> in host.nix, as before.
-      vms = [
-        {
-          name = "unit";
-          hostName = "unit-vm";
-          mac = "02:00:00:01:01:01"; # explicit: unit predates the derivation
-          sshHostPort = 2222;
-          imports = [
-            ./microvm/signalshell.nix
-            ./microvm/portal.nix
-            ./microvm/playwright.nix
-          ];
-        }
-        {
-          name = "eval";
-          # hostname defaults to vm-eval, MAC 02:00:00:<hash(name)>, no ssh
-          # forward -- access via signalshell only; ssh-forwarded rescue
-          # matters for unit because its host has consumers on 2222, while
-          # here the eval runs throwaway containers that signalshell reaches.
-          homeSize = 1024; # no forge credentials live on this guest
-          imports = [ ./microvm/signalshell.nix ];
-          packages = pkgs: with pkgs; [ docker git openssh curl rsync ];
-        }
-      ];
+      # The VM list lives in microvm/vms.nix so `devvm init` can scaffold a new
+      # instance by editing one file for one purpose. See the header there.
+      vms = import ./microvm/vms.nix;
 
       # The name is guest.nix's first argument; the rest of the entry fields
       # are its second. Applying both yields a plain module for nixosSystem.

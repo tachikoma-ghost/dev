@@ -1,0 +1,236 @@
+#!/usr/bin/env bash
+# bin/devvm: the bin/dev equivalent for microVMs. Same shape, same ergonomics:
+# one command, a subcommand, a name. What bin/dev is to docker-compose, this
+# is to flake.nix's `vms` list and microvm/guest.nix.
+#
+#   docker (bin/dev)            microVM (bin/devvm)
+#   --------------------------  ---------------------------------
+#   entry in docker-compose.yml entry in flake.nix `vms` list
+#   Dockerfile + setup/*.sh     microvm/guest.nix (+ imports)
+#   dev  build / start          vm  build / run (or start)
+#   dev  bash                   vm  console
+#
+# Requires nix and a checkout with the flake (the `devvm` branch). Names map
+# 1:1 to the `vms` list in flake.nix; guests' hostnames and MACs are derived
+# from the name there, so nothing per-instance lives in this script.
+
+set -eu -o pipefail
+
+## list of subcommands
+subcommands=("help" "list" "check" "build" "run" "start" "stop" "console" "init" "upgrade" "h" "l" "c" "b" "r" "i")
+
+## state directory for persistent data
+STATE_DIR="$HOME/.local/state/devvm"
+mkdir -p "$STATE_DIR"
+
+# Guest disk images live in one central folder per usage (Martin's idea: the
+# images are opaque, unlike containers' bind mounts, so no per-project
+# scatter). guest.nix reads this environment variable; nix evaluation then
+# needs --impure, which every nix call below passes.
+export DEVVM_VOLUMES_DIR="${DEVVM_VOLUMES_DIR:-$HOME/projects/devvm/volumes}"
+
+name=""
+command=""
+
+is_subcommand() {
+	[[ " ${subcommands[@]} " =~ " $1 " ]]
+}
+
+# First argument: a VM name, or a subcommand. Ambiguity resolved against the
+# subcommand list, since a VM name never collides with them.
+if [[ $# -gt 0 ]] && ! is_subcommand "$1"
+then
+	name="$1"
+	shift
+fi
+
+# No name given: use the last one, like bin/dev restores the last project.
+if [[ -z "$name" && "$command" != "help" && $# -gt 0 ]] && ! is_subcommand "$1"
+then :; fi
+if [[ -z "$name" ]] && [[ $# -gt 0 ]] && ! is_subcommand "$1"
+then
+	name="$1"
+	shift
+fi
+if [[ $# -gt 0 ]]
+then
+	if is_subcommand "$1"
+	then
+		command="$1"
+		shift
+	else
+		echo "Invalid command: $1"
+		exit 2
+	fi
+fi
+
+if [[ -z "$name" && ! "$command" =~ ^(help|list|upgrade|"" )$ ]]
+then
+	if [[ -f "$STATE_DIR/last.vm" ]]; then
+		name=$(cat "$STATE_DIR/last.vm")
+	else
+		echo "No VM name given and none remembered; see  devvm help"
+		exit 1
+	fi
+fi
+
+# The flake lives in the repo this checkout is on. Run from anywhere inside it.
+repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$repo" || ! -f "$repo/flake.nix" ]]
+then
+	echo "No flake.nix found: run inside the dev checkout with the devvm branch"
+	exit 5
+fi
+
+if [[ -n "$name" && ! "$name" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]
+then
+	echo "Invalid VM name '$name'. Lowercase letters, numbers and inner hyphens only."
+	exit 7
+fi
+
+help() {
+	echo "Usage: devvm [name] <command>"
+	echo ""
+	echo "  <name>: one of the VMs in microvm/vms.nix (see  devvm list)."
+	echo "          If omitted, the last used VM is reused."
+	echo ""
+	echo "<command>:"
+	echo "  help (h): show this help"
+	echo "  list (l): show the declared VMs"
+	echo "  init (i): scaffold a new VM: entry + config copied like dev init"
+	echo "  check: cheap sanity: evaluates a VM's derived config (hostname)"
+	echo "  build (b): build a VM's runner            = nix build .#<name>"
+	echo "  run (r): boot a VM in the foreground      = nix run .#<name>"
+	echo "  start: boot detached, in a tmux session devvm-<name>"
+	echo "  stop: stop a detached VM (kills its tmux session)"
+	echo "  console (c): attach to a detached VM's console"
+	echo "  upgrade: git pull this checkout (the flake is the VM's compose file)"
+	echo ""
+	echo "Disk images live under \$DEVVM_VOLUMES_DIR (default: ~/projects/devvm/volumes),"
+	echo "except for VMs pinning volumesDir = null (unit: its original locations)."
+	echo ""
+	echo "A host-managed VM (microvm.vms.<name> in host.nix) is driven by systemd:"
+	echo "  systemctl start/stop microvm@<name>, journalctl -u microvm@<name>"
+}
+
+## devvm init <name>: same spirit as dev init -- validate, scaffold the
+## entry, copy the useful host config so the guest gets it at first boot
+init() {
+	local vmsfile="$repo/microvm/vms.nix"
+	local setupdir="$repo/setup/user"
+
+	if [[ -z "$name" ]]; then
+		echo "Usage: devvm init <name>"
+		exit 1
+	fi
+	if grep -q "name = \"$name\";" "$vmsfile"; then
+		echo "VM '$name' already exists in $vmsfile"
+		exit 9
+	fi
+
+	# The ssh key: guest.nix mounts setup/user/key.pub as authorized_keys if
+	# it exists, so copying it is purely host-side work -- no entry field.
+	mkdir -p "$setupdir"
+	if [[ -f "$setupdir/key.pub" ]]; then
+		echo "Using existing $setupdir/key.pub"
+	elif ask "Copy your ssh public key into the guest's authorized_keys?" ; then
+		local pub
+		pub=$(ls "$HOME"/.ssh/*.pub 2>/dev/null | head -n1 || true)
+		if [[ -n "$pub" ]]; then
+			cp "$pub" "$setupdir/key.pub"
+			echo "Copied $pub -> $setupdir/key.pub"
+		else
+			echo "No *.pub found in ~/.ssh; add one later to $setupdir/key.pub"
+		fi
+	fi
+
+	# Per-user config from dev's own convention: setup/user/<file>, copied
+	# into /home/node at the guest's first boot (guest.nix userFiles).
+	local have_gitconfig="n"
+	if [[ -f "$setupdir/gitconfig" ]]; then
+		have_gitconfig="y"
+	elif [[ -f "$HOME/.gitconfig" ]] && ask "Copy your .gitconfig into the guest?" ; then
+		cp "$HOME/.gitconfig" "$setupdir/gitconfig"
+		echo "Copied ~/.gitconfig -> $setupdir/gitconfig"
+	fi
+	local userfiles=""
+	if [[ "$have_gitconfig" == "y" ]]; then
+		userfiles=$'\n          userFiles = {\n            ".gitconfig" = ../setup/user/gitconfig;\n          };'
+	fi
+
+	local entry temp
+	entry="        {
+          name = \"$name\";
+          # scaffolded by devvm init; adjust imports/sizes/packages to taste.$userfiles
+        }"
+	temp=$(mktemp)
+	printf '%s\n\n' "$entry" | awk '
+		/^  # devvm init adds new entries above this comment$/ && !done {
+			while ((getline l < "-") > 0) print l
+			done = 1
+		}
+		{ print }
+	' "$vmsfile" > "$temp"
+	mv "$temp" "$vmsfile"
+
+	echo "Added entry '$name' to microvm/vms.nix."
+	echo "Next:  devvm check $name && devvm build $name && devvm run $name"
+}
+
+case "$command" in
+	"h"|"help")
+		help
+		;;
+	"init"|"i")
+		init
+		;;
+	"list"|"l")
+		nix eval --impure --json ".#nixosConfigurations" --apply 'builtins.attrNames' | tr -d '[]"' | tr ',' ' '
+		;;
+	"check")
+		nix eval --impure --raw ".#nixosConfigurations.$name.config.networking.hostName"
+		echo ""
+		;;
+	"build"|"b")
+		nix build --impure ".#$name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"run"|"r")
+		# Foreground: the serial console autologins as node and is visible only
+		# in this terminal. Leave with C-a x (qemu's escape).
+		nix run --impure ".#$name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"start")
+		if ! command -v tmux >/dev/null; then
+			echo "start needs tmux; use  devvm run  for the foreground instead"
+			exit 6
+		fi
+		tmux new-session -d -s "devvm-$name" "cd '$repo' && nix run --impure '.#$name'"
+		echo "booting in tmux session devvm-$name; attach with  devvm console $name"
+		echo "$name" > "$STATE_DIR/last.vm"
+		;;
+	"stop")
+		tmux kill-session -t "devvm-$name"
+		;;
+	"console"|"c")
+		# Two attaches would fight over the same tty; reuse a session if open.
+		tmux attach -t "devvm-$name" 2>/dev/null || tmux attach -t "devvm-$name"
+		;;
+	"upgrade")
+		git -C "$repo" pull
+		;;
+	"")
+		# default like bin/dev's bash: no command given with a name = console
+		if command -v tmux >/dev/null && tmux has-session -t "devvm-$name" 2>/dev/null; then
+			tmux attach -t "devvm-$name"
+		else
+			nix run --impure ".#$name"
+			echo "$name" > "$STATE_DIR/last.vm"
+		fi
+		;;
+	*)
+		echo "Invalid command: $command"
+		exit 4
+		;;
+esac

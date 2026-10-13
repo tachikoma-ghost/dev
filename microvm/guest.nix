@@ -35,6 +35,23 @@ name:
   # (access), portal/playwright are per-instance choices.
   imports ? [],
   packages ? defaultPackages,
+  # Disk image location. null (= unset, no DEVVM_VOLUMES_DIR env): the
+  # microvm module's own per-VM layout, where unit's disks already live --
+  # pinned in unit's entry. A path (or the env when the field is unset):
+  # one central folder per usage, e.g. bin/devvm exports
+  # $HOME/projects/devvm/volumes, giving "volumes/eval/docker.img".
+  volumesDir ? builtins.getEnv "DEVVM_VOLUMES_DIR",
+  # User config files copied into the guest's home once, at first boot --
+  # what `dev init` does at image build and setup/agent.sh does per tool.
+  # Map of target-in-/home/node to source path in this repo, e.g.
+  # { ".gitconfig" = ../setup/user/gitconfig; }. Sources go into the guest
+  # as store paths, so a VM rebuild re-copies from the new store path only
+  # if the one-time run has not happened yet (see the marker below).
+  userFiles ? {},
+  # Extra first-boot provisioning lines (the Dockerfile's RUN lines), same
+  # one-time semantics as userFiles. Instance scripts run as root; node has
+  # passwordless sudo (wheel), so lines can su node where needed.
+  setup ? [],
   stateVersion ? "25.05",
 }:
 { lib, pkgs, ... }:
@@ -79,11 +96,15 @@ in
     ];
 
     # Docker's layers, the home directory and the working tree all go on real
-    # block devices, never a share. Image names are per-VM state dirs, so they
-    # can stay generic across instances.
-    volumes = [
+    # block devices, never a share. Image names are bare per VM state dir
+    # (volumesDir = null) or absolute under one central folder per usage.
+    volumes = let
+      img = f: if volumesDir == null || volumesDir == ""
+        then f
+        else volumesDir + "/" + name + "/" + f;
+    in [
       {
-        image = "docker.img";
+        image = img "docker.img";
         mountPoint = "/var/lib/docker";
         size = dockerSize;
       }
@@ -91,7 +112,7 @@ in
       # tea's credentials and signalshell's host key would all have to be
       # recreated after every boot.
       {
-        image = "home.img";
+        image = img "home.img";
         mountPoint = "/home/node";
         size = homeSize;
       }
@@ -103,7 +124,7 @@ in
       # disk it is native block I/O and inotify works. The tree is no longer
       # visible to the host; clone your project into /workspace in the guest.
       {
-        image = "workspace.img";
+        image = img "workspace.img";
         mountPoint = "/workspace";
         size = workspaceSize;
       }
@@ -192,4 +213,29 @@ in
 
   networking.hostName = hostName;
   system.stateVersion = stateVersion;
+
+  # First-boot provisioning: copy userFiles into /home/node, then run the
+  # instance's setup lines. A oneshot with a marker on the persistent home
+  # disk, so it behaves like a docker image build: every boot after the first
+  # skips it, and hand-edits a user made inside the guest are never clobbered.
+  systemd.services.devvm-setup = lib.mkIf (userFiles != {} || setup != []) {
+    description = "devvm per-instance provisioning (config files + setup)";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" "systemd-tmpfiles-setup.service" ];
+    # The home disk persists across reboot and rebuild; the marker lives
+    # where almost everything persistent on this guest lives.
+    unitConfig.ConditionPathExists = "!/home/node/.local/state/devvm-setup.done";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      set -euo pipefail
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src:
+        # 600 by default: files copied here are typically credentials or
+        # personal config; the broader-readable ones can chmod up inside.
+        "install -D -m 600 -o node -g users '${src}' '/home/node/${target}'"
+      ) userFiles)}
+      ${lib.concatStringsSep "\n" setup}
+      mkdir -p /home/node/.local/state
+      touch /home/node/.local/state/devvm-setup.done
+    '';
+  };
 }
