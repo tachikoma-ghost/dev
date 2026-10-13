@@ -7,24 +7,17 @@
 # per VM and deterministic across rebuilds -- hostName, MAC, ssh forward port --
 # are either passed explicitly or derived from the VM *name* by hash, so a
 # rebuild can never accidentally shadow another VM's identity.
-{ config, lib, pkgs, ... }:
-
-let
-  # The only share left is the read-only Nix store. 9p by default so a
-  # foreground `nix run` needs no root; virtiofs once the VM is host-managed and
-  # systemd starts virtiofsd for it. See microvm/host.nix.
-  envProto = builtins.getEnv "DEV_SHARE_PROTO";
-  shareProto = if envProto != "" then envProto else "9p";
-  sshKey = ../setup/user/key.pub;
-
-  # Default tooling (as unit.nix shipped it): a TypeScript CLI driver (bun),
-  # git over ssh, the forge CLI (tea). Instances override `packages` freely.
-  defaultPackages = pkgs: with pkgs; [ bun git openssh tea curl ];
-in
+# Instantiation shape (see flake.nix): the file is a two-argument function —
+#   guest = import ./microvm/guest.nix;
+#   <module> = guest "eval" { hostName = ...; imports = [...]; };
+# The name comes first as a plain argument; the entry fields are the second
+# argument, each with a default. Applying both produces a plain module.
+# Module arguments (lib, pkgs) are applied last, by the module system.
+name:
 {
   # The VM's identity under the flake and on the host (microvm.vms.<name>,
-  # /var/lib/microvms/<name>). Also seeds the derived values below.
-  name,
+  # /var/lib/microvms/<name>). Also seeds the derived values below:
+  # hostName, the interface id and the MAC.
   # Guest hostname.
   hostName ? "vm-" + name,
   # Locally administered MAC. Derived deterministically from the name when
@@ -44,6 +37,20 @@ in
   packages ? defaultPackages,
   stateVersion ? "25.05",
 }:
+{ lib, pkgs, ... }:
+
+let
+  # The only share left is the read-only Nix store. 9p by default so a
+  # foreground `nix run` needs no root; virtiofs once the VM is host-managed and
+  # systemd starts virtiofsd for it. See microvm/host.nix.
+  envProto = builtins.getEnv "DEV_SHARE_PROTO";
+  shareProto = if envProto != "" then envProto else "9p";
+  sshKey = ../setup/user/key.pub;
+
+  # Default tooling (as unit.nix shipped it): a TypeScript CLI driver (bun),
+  # git over ssh, the forge CLI (tea). Instances override `packages` freely.
+  defaultPackages = pkgs: with pkgs; [ bun git openssh tea curl ];
+in
 
 {
   imports = imports;

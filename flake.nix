@@ -39,22 +39,24 @@
         }
         {
           name = "eval";
-          # eval-vm, MAC 02:00:00:<hash(name)>, no ssh forward -- rescue access
-          # via signalshell; ssh matters for unit because the daemon ships
-          # with it, here the eval runs in throwaway containers only.
+          # hostname defaults to vm-eval, MAC 02:00:00:<hash(name)>, no ssh
+          # forward -- access via signalshell only; ssh-forwarded rescue
+          # matters for unit because its host has consumers on 2222, while
+          # here the eval runs throwaway containers that signalshell reaches.
           homeSize = 1024; # no forge credentials live on this guest
           imports = [ ./microvm/signalshell.nix ];
           packages = pkgs: with pkgs; [ docker git openssh curl rsync ];
         }
       ];
 
+      # The name is guest.nix's first argument; the rest of the entry fields
+      # are its second. Applying both yields a plain module for nixosSystem.
+      guest = import ./microvm/guest.nix;
       mkGuest = entry: nixpkgs.lib.nixosSystem {
         inherit system;
         modules = [
           microvm.nixosModules.microvm
-          (import ./microvm/guest.nix ({
-            inherit (entry) name;
-          } // (removeAttrs entry [ "name" "size" ])))
+          (guest entry.name (removeAttrs entry [ "name" ]))
         ];
       };
     in {
