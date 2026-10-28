@@ -13,6 +13,12 @@
 # The name comes first as a plain argument; the entry fields are the second
 # argument, each with a default. Applying both produces a plain module.
 # Module arguments (lib, pkgs) are applied last, by the module system.
+let
+  # Default tooling (as unit.nix shipped it): a TypeScript CLI driver (bun),
+  # git over ssh, the forge CLI (tea). Instances override `packages` freely.
+  # Bound outside the function: argument defaults cannot see the module's let.
+  defaultPackages = pkgs: with pkgs; [ bun git openssh tea curl ];
+in
 name:
 {
   # The VM's identity under the flake and on the host (microvm.vms.<name>,
@@ -63,10 +69,6 @@ let
   envProto = builtins.getEnv "DEV_SHARE_PROTO";
   shareProto = if envProto != "" then envProto else "9p";
   sshKey = ../setup/user/key.pub;
-
-  # Default tooling (as unit.nix shipped it): a TypeScript CLI driver (bun),
-  # git over ssh, the forge CLI (tea). Instances override `packages` freely.
-  defaultPackages = pkgs: with pkgs; [ bun git openssh tea curl ];
 in
 
 {
