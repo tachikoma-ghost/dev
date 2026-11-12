@@ -15,6 +15,9 @@
     mac = "02:00:00:01:01:01"; # explicit: unit predates the derivation
     sshHostPort = 2222;
     volumesDir = null; # pinned: keep unit's existing disk locations
+    # Grown by hand on 2026-11-12 (truncate + resize2fs, VM stopped); the
+    # size here only takes effect when the image is created.
+    dockerSize = 40960;
     imports = [
       ./signalshell.nix
       ./portal.nix
