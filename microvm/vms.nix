@@ -18,6 +18,8 @@
     # Grown by hand on 2026-11-12 (truncate + resize2fs, VM stopped); the
     # size here only takes effect when the image is created.
     dockerSize = 40960;
+    # jq: the product's work runtimes require it on the host.
+    packages = pkgs: with pkgs; [ bun git openssh tea curl jq ];
     imports = [
       ./signalshell.nix
       ./portal.nix
