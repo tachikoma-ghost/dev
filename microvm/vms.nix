@@ -15,9 +15,11 @@
     mac = "02:00:00:01:01:01"; # explicit: unit predates the derivation
     sshHostPort = 2222;
     volumesDir = null; # pinned: keep unit's existing disk locations
-    # Grown by hand on 2026-11-12 (truncate + resize2fs, VM stopped); the
-    # size here only takes effect when the image is created.
-    dockerSize = 40960;
+    # Grown by hand on 2026-11-12 and again on 2026-11-19, to 100G: one full
+    # work runtime next to the dev stacks filled 40G (truncate + e2fsck +
+    # resize2fs, VM stopped). The size here only takes effect when the image
+    # is created.
+    dockerSize = 102400;
     # jq: the product's work runtimes require it on the host.
     packages = pkgs: with pkgs; [ bun git openssh tea curl jq ];
     imports = [
