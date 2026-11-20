@@ -63,11 +63,6 @@ name:
 { lib, pkgs, ... }:
 
 let
-  # The only share left is the read-only Nix store. 9p by default so a
-  # foreground `nix run` needs no root; virtiofs once the VM is host-managed and
-  # systemd starts virtiofsd for it. See microvm/host.nix.
-  envProto = builtins.getEnv "DEV_SHARE_PROTO";
-  shareProto = if envProto != "" then envProto else "9p";
   sshKey = ../setup/user/key.pub;
 in
 
@@ -83,19 +78,14 @@ in
 
     inherit vcpu mem;
 
-    # Protocol from DEV_SHARE_PROTO, 9p by default: virtiofs needs a virtiofsd
-    # per share, and the command-line runner supervises them expecting to be
-    # root, while qemu implements 9p itself.
-    shares = [
-      # A NixOS guest runs from the host's store; without this it has no system.
-      # It is read-only and mostly cached, so keeping it on 9p is cheap.
-      {
-        tag = "ro-store";
-        source = "/nix/store";
-        mountPoint = "/nix/.ro-store";
-        proto = shareProto;
-      }
-    ];
+    # No shares. With none pointing at /nix/store, microvm.nix packs the
+    # guest's closure into a read-only erofs image (microvm.storeOnDisk),
+    # rebuilt only when the closure changes. The store was a 9p share of the
+    # host's /nix/store until 2026-11-20, mounted without a cache, so every
+    # program start read its binary from the host again: `docker --version`
+    # took 0.8 s and `docker compose version` 1.7 s, against 0.2 s and 0.35 s
+    # from local memory, and Docker-heavy test suites ran for half an hour.
+    shares = [ ];
 
     # Docker's layers, the home directory and the working tree all go on real
     # block devices, never a share. Image names are bare per VM state dir

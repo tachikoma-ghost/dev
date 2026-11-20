@@ -199,14 +199,11 @@ connection string, so leave it where it is.
 
 **At boot, rather than in a terminal.** Import `microvm/host.nix` into the
 host's `configuration.nix`, which declares `microvm.vms.unit`. systemd then
-starts the guest and, before it, one `virtiofsd` per share.
+starts the guest.
 
-**Shares.** Only `/nix/store` is shared now (read-only and mostly cached); the
-working tree is a disk. 9p is the default, so a foreground boot needs nothing
-but `kvm` group membership. virtiofs is faster but needs a `virtiofsd` per
-share, and the command-line runner supervises them expecting to be root (`Can't
-drop privilege as nonroot user`). Once the VM is host-managed, switch with
-`DEV_SHARE_PROTO=virtiofs` -- an environment read, so it needs `--impure`.
+**No shares.** The guest's Nix store is a read-only erofs image of its closure, built with the runner and rebuilt only when the closure changes; the working tree is a disk.
+The store was a 9p share of the host's `/nix/store` until 2026-11-20.
+It was mounted without a cache, so every program start read its binary from the host again, and a Docker call took 1 to 2 seconds before doing anything.
 
 **The working tree** is `workspace.img`, mounted at `/workspace`, and is *not*
 visible to the host. Clone your project into `/workspace` in the guest.
